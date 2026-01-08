@@ -11,3 +11,6 @@ wheels/
 
 # ImmuDB Database
 data/
+
+# Environments
+.env
