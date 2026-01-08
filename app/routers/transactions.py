@@ -12,14 +12,13 @@ router = APIRouter(tags=["Transactions"])
 def create_transaction(txn: TransactionCreate):
     client = get_db_client()
     try:
-        # Default status: Collections are Approved immediately (usually), Disbursements need Approval
-        # For this system, let's say all new inputs are 'Pending' unless specified otherwise,
-        # or Collections = Approved, Disbursements = Pending.
+        # Default status
         status = "Pending"
 
-        # Convert float to integer cents for storage to avoid float drift
+        # Convert float to integer cents for storage
         amount_cents = int(txn.amount * 100)
 
+        # REMOVED: 'RETURNING id, created_at, status' to fix syntax error
         query = f"""
             INSERT INTO transactions (
                 created_at, recorded_by, txn_type, strand, category,
@@ -27,19 +26,22 @@ def create_transaction(txn: TransactionCreate):
             ) VALUES (
                 NOW(), '{txn.recorded_by}', '{txn.txn_type}', '{txn.strand}', '{txn.category}',
                 '{txn.description}', {amount_cents}, '{status}', '{txn.student_id or ""}', '{txn.proof_reference or ""}'
-            ) RETURNING id, created_at, status
+            )
         """
-        # Note: RETURNING might not be fully supported in all immudb-py versions via sqlQuery immediately
-        # So we might execute then select max id.
-        # For safety in this demo, let's do Insert then Read.
 
         client.sqlExec(query)
 
-        # Fetch back the latest transaction for this user to confirm
-        # This is a bit race-condition prone in high concurrency without RETURNING, but acceptable for demo.
+        # Fetch back the latest transaction for this user to get the generated ID
         res = client.sqlQuery(
             f"SELECT id, created_at FROM transactions WHERE recorded_by='{txn.recorded_by}' ORDER BY id DESC LIMIT 1"
         )
+
+        if not res:
+            raise HTTPException(
+                status_code=500,
+                detail="Transaction created but could not be retrieved.",
+            )
+
         new_id = res[0][0]
         created_at = str(res[0][1])
 
@@ -58,7 +60,7 @@ def create_transaction(txn: TransactionCreate):
         }
 
     except Exception as e:
-        print(e)
+        print(f"Transaction Error: {e}")
         raise HTTPException(status_code=500, detail=f"Transaction failed: {str(e)}")
 
 
@@ -112,6 +114,7 @@ def get_transactions(
         return txns
 
     except Exception as e:
+        print(f"Fetch Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -134,4 +137,5 @@ def approve_transaction(txn_id: int, approval: ApprovalRequest):
         client.sqlExec(query)
         return {"message": f"Transaction {new_status}"}
     except Exception as e:
+        print(f"Approval Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
