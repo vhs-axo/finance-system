@@ -13,10 +13,23 @@ pip install uv
 ```
 
 then sulod sa cloned na directory tapos run
-`uv sync`
-`uv venv`
+```bash
+uv sync
+uv venv
+```
 
 then run `immudb` inside the project directory
 then run `uvicorn main:app`
 
-then if yall wann check the test run lang `streamlit run frontend_test.py`
+then if yall wann check the test run lang 
+```bash
+streamlit run frontend_test.py
+```
+
+oh shit also make a `.env`
+kani ra sulod
+```
+INITIAL_ADMIN_PASS=MySecretAdminPass123!
+INITIAL_STAFF_PASS=StaffSecure2024
+INITIAL_AUDITOR_PASS=AuditMeIfYouCan
+```
