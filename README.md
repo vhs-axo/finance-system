@@ -3,6 +3,7 @@ ano
 install sa immudb guys
 
 here links sa what to install (add them sa environment variable nyo)
+
 [`immudb`](https://github.com/codenotary/immudb/releases/download/v1.10.0/immudb-v1.10.0-windows-amd64.exe)
 [`immuclient`](https://github.com/codenotary/immudb/releases/download/v1.10.0/immuclient-v1.10.0-windows-amd64.exe)
 [`immuadmin`](https://github.com/codenotary/immudb/releases/download/v1.10.0/immuadmin-v1.10.0-windows-amd64.exe)
@@ -19,7 +20,15 @@ uv venv
 ```
 
 then run `immudb` inside the project directory
-then run `uvicorn main:app`
+```bash
+immudb
+```
+
+then run using `uvicorn`
+```bash
+uvicorn main:app
+```
+
 
 then if yall wann check the test run lang 
 ```bash
@@ -34,4 +43,5 @@ INITIAL_STAFF_PASS=StaffSecure2024
 INITIAL_AUDITOR_PASS=AuditMeIfYouCan
 INITIAL_IT_PASS=ITPotential
 ```
+
 
