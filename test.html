@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial System Test</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .card { border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        pre { background: #f4f4f4; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Frontend API Test</h1>
+    <p>Click the button below to fetch transactions from your Python/Immudb backend.</p>
+    
+    <button onclick="fetchData()">Load Transactions</button>
+    
+    <div id="status"></div>
+    <h3>Raw Response:</h3>
+    <pre id="output">No data fetched yet.</pre>
+
+    <script>
+        async function fetchData() {
+            const statusDiv = document.getElementById('status');
+            const outputPre = document.getElementById('output');
+            
+            statusDiv.innerHTML = "Loading...";
+            
+            try {
+                // Fetching from your Python API
+                const response = await fetch('http://127.0.0.1:8000/transactions');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP Error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                statusDiv.innerHTML = `<h3 class="success">Success! Connection Established.</h3>`;
+                outputPre.textContent = JSON.stringify(data, null, 2);
+                
+            } catch (error) {
+                console.error(error);
+                statusDiv.innerHTML = `<h3 class="error">Error: ${error.message}</h3>`;
+                outputPre.textContent = "Make sure 'api.py' is running and you have installed 'immudb' and 'uvicorn'.";
+            }
+        }
+    </script>
+</body>
+</html>
