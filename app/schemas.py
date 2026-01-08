@@ -1,9 +1,11 @@
 from pydantic import BaseModel
 
+
 # --- AUTH & USER SCHEMAS ---
 class LoginRequest(BaseModel):
     username: str
     password: str
+
 
 class LoginResponse(BaseModel):
     success: bool
@@ -11,14 +13,17 @@ class LoginResponse(BaseModel):
     name: str | None = None
     message: str
 
+
 class UserBase(BaseModel):
     username: str
     role: str
     name: str
     active: bool = True
 
+
 class UserCreate(UserBase):
     password: str
+
 
 class UserUpdate(BaseModel):
     role: str | None = None
@@ -26,8 +31,10 @@ class UserUpdate(BaseModel):
     active: bool | None = None
     password: str | None = None
 
+
 class UserResponse(UserBase):
     pass
+
 
 # --- STUDENT SCHEMAS ---
 class StudentCreate(BaseModel):
@@ -35,12 +42,14 @@ class StudentCreate(BaseModel):
     name: str
     strand: str
 
+
 class StudentResponse(BaseModel):
     id: int
     student_id: str
     name: str
     strand: str
     status: str
+
 
 # --- TRANSACTION SCHEMAS ---
 class TransactionCreate(BaseModel):
@@ -52,6 +61,7 @@ class TransactionCreate(BaseModel):
     amount: float
     student_id: str | None = None
     proof_reference: str | None = None  # Added for Evidence/Receipt Ref
+
 
 class TransactionResponse(BaseModel):
     id: int
@@ -68,9 +78,11 @@ class TransactionResponse(BaseModel):
     approval_date: str | None = None
     proof_reference: str | None = None
 
+
 class ApprovalRequest(BaseModel):
     admin_username: str
     action: str  # 'Approve' or 'Reject'
+
 
 # --- STATS SCHEMAS ---
 class DashboardStats(BaseModel):
