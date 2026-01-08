@@ -6,7 +6,7 @@ from .core import (
 )
 from .utils import get_password_hash
 
-def get_db_client():
+def get_db_client() -> ImmudbClient:
     """Opens a connection to Immudb for a request."""
     client = ImmudbClient(f"{DB_HOST}:{DB_PORT}")
     try:
@@ -16,7 +16,7 @@ def get_db_client():
         print(f"Connection failed: {e}")
         raise HTTPException(status_code=503, detail="Database Unavailable")
 
-def seed_users(client):
+def seed_users(client: ImmudbClient):
     """Populate the database with initial users if empty."""
     try:
         # Check if users exist

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from ..schemas import LoginRequest, LoginResponse
 from ..database import get_db_client
 from ..utils import verify_password
@@ -9,21 +9,24 @@ router = APIRouter(tags=["Authentication"])
 def login(creds: LoginRequest):
     client = get_db_client()
     try:
-        # 1. Fetch user from DB
-        # Note: We query by username and ensure the user is active
-        query = f"SELECT username, hashed_password, role, name FROM users WHERE username = '{creds.username}' AND active = true"
+        # 1. Query the user from the database
+        # Note: We use f-string for simplicity in this demo, but use param binding in prod to prevent SQL injection
+        query = f"SELECT hashed_password, role, name, active FROM users WHERE username = '{creds.username}'"
         result = client.sqlQuery(query)
         
         if not result:
-            return {"success": False, "message": "Invalid credentials"}
-            
-        # 2. Extract data from result
-        user_row = result[0]
-        stored_hash = user_row[1]
-        role = user_row[2]
-        name = user_row[3]
+            return {"success": False, "message": "User not found"}
         
-        # 3. Verify Password (using passlib/bcrypt)
+        # 2. Extract data (Immudb returns a list of tuples)
+        stored_hash = result[0][0]
+        role = result[0][1]
+        name = result[0][2]
+        is_active = result[0][3]
+
+        if not is_active:
+             return {"success": False, "message": "Account is disabled"}
+
+        # 3. Verify Password using Scrypt
         if verify_password(creds.password, stored_hash):
             return {
                 "success": True, 
@@ -32,8 +35,8 @@ def login(creds: LoginRequest):
                 "message": "Login successful"
             }
         else:
-            return {"success": False, "message": "Invalid credentials"}
+            return {"success": False, "message": "Invalid password"}
             
     except Exception as e:
-        print(f"Login error: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        print(f"Login Error: {e}")
+        return {"success": False, "message": "System error during login"}
