@@ -1,37 +1,65 @@
-from fastapi import APIRouter, HTTPException
-from ..schemas import DashboardStats
+from fastapi import APIRouter
+
 from ..database import get_db_client
+from ..schemas import DashboardStats
 
 router = APIRouter(tags=["Statistics"])
+
 
 @router.get("/stats", response_model=DashboardStats)
 def get_stats():
     client = get_db_client()
     try:
-        result = client.sqlQuery("SELECT txn_type, category, amount FROM transactions")
-        
-        tuition = 0
-        misc = 0
-        org = 0
-        expenses = 0
-        
+        # We fetch minimal columns needed for calculation
+        result = client.sqlQuery(
+            "SELECT txn_type, category, amount, status FROM transactions"
+        )
+
+        tuition = 0.0
+        misc = 0.0
+        org = 0.0
+        expenses = 0.0
+        pending = 0
+
         for row in result:
             txn_type = row[0]
             category = row[1]
+            # Amount is stored as integer cents in DB, convert to float
             amount = row[2] / 100.0
-            
-            if txn_type == 'Disbursement':
+            status = row[3]
+
+            if status == "Pending":
+                pending += 1
+                # We usually don't include Pending transactions in the financial totals
+                # to prevent inflated numbers before approval.
+                continue
+
+            # Logic for Approved/Completed transactions
+            if txn_type == "Disbursement":
                 expenses += amount
-            elif txn_type == 'Collection':
-                if category == 'Tuition Fee': tuition += amount
-                elif category == 'Miscellaneous Fee': misc += amount
-                elif category == 'Organization Fund': org += amount
+            elif txn_type == "Collection":
+                if category == "Tuition Fee":
+                    tuition += amount
+                elif category == "Miscellaneous Fee":
+                    misc += amount
+                elif category == "Organization Fund":
+                    org += amount
+                # 'Donation' or others can be added here if needed
 
         return {
             "total_tuition": tuition,
             "total_misc": misc,
             "total_org": org,
-            "total_expenses": expenses
+            "total_expenses": expenses,
+            "pending_count": pending,
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Stats Error: {e}")
+        # Return zeros on error so the dashboard doesn't crash completely
+        return {
+            "total_tuition": 0,
+            "total_misc": 0,
+            "total_org": 0,
+            "total_expenses": 0,
+            "pending_count": 0,
+        }
