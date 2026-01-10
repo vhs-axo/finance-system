@@ -77,6 +77,7 @@ class TransactionResponse(BaseModel):
     approved_by: str | None = None
     approval_date: str | None = None
     proof_reference: str | None = None
+    tx_hash: str | None = None
 
 
 class ApprovalRequest(BaseModel):
