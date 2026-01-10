@@ -1,5 +1,9 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from .database import init_db
 from .routers import auth, files, stats, transactions
@@ -12,7 +16,6 @@ app = FastAPI(
 )
 
 # 1. CORS Configuration
-# Allows the Streamlit frontend (usually on port 8501) to talk to this API (port 8000)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Allow all origins for dev; restrict in prod
@@ -22,23 +25,31 @@ app.add_middleware(
 )
 
 
-# 2. Database Initialization on Startup
+# 2. Database Initialization
 @app.on_event("startup")
 def on_startup():
     init_db()
+    os.makedirs("uploads", exist_ok=True)
+    os.makedirs("static", exist_ok=True)  # Ensure static dir exists
 
 
 # 3. Include Routers
-# These map the endpoints from the routers folder to the main app
 app.include_router(auth.router)
 app.include_router(transactions.router)
 app.include_router(stats.router)
 app.include_router(files.router, prefix="/files")
 
+# 4. Mount Static Files
+# This allows serving the frontend assets
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Root check
+
+# Root Endpoint -> Serve the Frontend
 @app.get("/")
-def read_root():
+async def read_root():
+    # Make sure static/index.html exists before running
+    if os.path.exists("static/index.html"):
+        return FileResponse("static/index.html")
     return {
         "status": "online",
         "system": "SHS Financial Transparency System",
