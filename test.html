@@ -17,9 +17,9 @@
 <body>
     <h1>Frontend API Test</h1>
     <p>Click the button below to fetch transactions from your Python/Immudb backend.</p>
-    
+
     <button onclick="fetchData()">Load Transactions</button>
-    
+
     <div id="status"></div>
     <h3>Raw Response:</h3>
     <pre id="output">No data fetched yet.</pre>
@@ -28,22 +28,22 @@
         async function fetchData() {
             const statusDiv = document.getElementById('status');
             const outputPre = document.getElementById('output');
-            
+
             statusDiv.innerHTML = "Loading...";
-            
+
             try {
                 // Fetching from your Python API
                 const response = await fetch('http://127.0.0.1:8000/transactions');
-                
+
                 if (!response.ok) {
                     throw new Error(`HTTP Error: ${response.status}`);
                 }
 
                 const data = await response.json();
-                
+
                 statusDiv.innerHTML = `<h3 class="success">Success! Connection Established.</h3>`;
                 outputPre.textContent = JSON.stringify(data, null, 2);
-                
+
             } catch (error) {
                 console.error(error);
                 statusDiv.innerHTML = `<h3 class="error">Error: ${error.message}</h3>`;
