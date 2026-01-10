@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import init_db
-from .routers import auth, stats, transactions
+from .routers import auth, files, stats, transactions
 
 # Initialize API
 app = FastAPI(
@@ -33,6 +33,7 @@ def on_startup():
 app.include_router(auth.router)
 app.include_router(transactions.router)
 app.include_router(stats.router)
+app.include_router(files.router)
 
 
 # Root check
