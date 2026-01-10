@@ -7,15 +7,15 @@ from fastapi.responses import FileResponse
 
 router = APIRouter(tags=["Files"])
 
-# Ensure upload directory exists
-UPLOAD_DIR = "uploads/receipts"
+# Create a local directory to store images
+UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
-@router.post("/files/upload", response_model=dict)
-async def upload_proof(file: UploadFile = File(...)):
+@router.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
     """
-    Upload a receipt image and return the file path.
+    Receives a file, saves it with a unique ID, and returns the path.
     """
     try:
         # Validate file type
@@ -27,26 +27,28 @@ async def upload_proof(file: UploadFile = File(...)):
 
         # Generate unique filename
         file_ext = file.filename.split(".")[-1]
-        unique_name = f"{uuid.uuid4()}.{file_ext}"
-        file_path = os.path.join(UPLOAD_DIR, unique_name)
+        new_name = f"{uuid.uuid4()}.{file_ext}"
+        file_path = os.path.join(UPLOAD_DIR, new_name)
 
+        # Save the file to disk
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # Return the relative path for storage in DB
-        return {"filename": unique_name, "path": file_path}
-    except HTTPException as he:
-        raise he
+        # Return the path relative to the API URL
+        # e.g., if API_URL is localhost:8000, this returns 'files/filename.png'
+        # The frontend will append this to API_URL
+        return {"path": f"files/{new_name}"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
+        print(f"Upload Error: {e}")
+        raise HTTPException(status_code=500, detail="File upload failed")
 
 
-@router.get("/files/uploads/receipts/{filename}")
-async def get_proof(filename: str):
+@router.get("/{filename}")
+async def get_file(filename: str):
     """
-    Serve the uploaded file.
+    Serve the file back to the browser.
     """
     file_path = os.path.join(UPLOAD_DIR, filename)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(file_path)
+    if os.path.exists(file_path):
+        return FileResponse(file_path)
+    raise HTTPException(status_code=404, detail="File not found")

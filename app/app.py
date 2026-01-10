@@ -33,7 +33,7 @@ def on_startup():
 app.include_router(auth.router)
 app.include_router(transactions.router)
 app.include_router(stats.router)
-app.include_router(files.router)
+app.include_router(files.router, prefix="/files")
 
 
 # Root check
