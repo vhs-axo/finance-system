@@ -1,4 +1,5 @@
 import time
+from io import BytesIO
 
 import pandas as pd
 import plotly.express as px
@@ -10,829 +11,682 @@ import streamlit as st
 # -----------------------------------------------------------------------------
 API_URL = "http://127.0.0.1:8000"
 
-# Theme Colors
+# La Salle Academy Theme Colors
 PRIMARY_GREEN = "#006241"  # La Salle Green
 SECONDARY_GOLD = "#FFC72C"  # School Gold
-BG_LIGHT = "#F4F4F4"
-TEXT_DARK = "#333333"
+ACCENT_GREEN = "#004d33"   # Darker Green for hover/active states
+BG_LIGHT = "#F9FAFB"       # Very light gray for background
+TEXT_DARK = "#1F2937"      # Dark charcoal for text
+WHITE = "#FFFFFF"
 
 ROLES = {
-    "admin": "Admin",
+    "admin": "Admin / Principal",
     "staff": "Finance Staff",
     "officer": "Finance Officer",
     "auditor": "Auditor",
-    "it": "System Admin",
-    "student": "Student",  # NEW ROLE ADDED
+    "it": "System Administrator",
+    "student": "Student",
+    "guest": "Guest"
 }
 
 STRANDS = ["ABM", "STEM", "HUMSS", "General"]
 CATEGORIES = {
-    "Collection": ["Tuition Fee", "Miscellaneous Fee", "Organization Fund", "Donation"],
+    "Collection": ["Tuition Fee", "Miscellaneous Fee", "Organization Fund", "Donation", "Other"],
     "Disbursement": [
         "Utility Bill",
         "Teacher Salary",
         "Event Expense",
         "Maintenance",
         "Refund",
+        "Other"
     ],
 }
 
 
 # -----------------------------------------------------------------------------
-# CSS STYLING
+# CSS STYLING (La Salle Theme)
 # -----------------------------------------------------------------------------
 def inject_custom_css():
     st.markdown(
         f"""
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;700&family=Roboto:wght@300;400;700&display=swap');
-
+        @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&family=Roboto:wght@300;400;500;700&display=swap');
+        
+        /* FORCE LIGHT THEME BACKGROUND */
         .stApp {{
             background-color: {BG_LIGHT};
-            font-family: 'Roboto', 'Arial', sans-serif;
-            color: {TEXT_DARK};
+        }}
+        
+        /* --- TEXT VISIBILITY FIXES --- */
+        /* Force specific elements to use dark text to prevent White-on-White issues */
+        
+        /* General Text, Paragraphs, Lists */
+        .stMarkdown p, .stMarkdown li, .stText, p {{
+            color: {TEXT_DARK} !important;
+            font-family: 'Roboto', sans-serif;
+        }}
+        
+        /* Labels for Inputs */
+        .stTextInput label, .stNumberInput label, .stSelectbox label, .stTextArea label, .stFileUploader label {{
+            color: {TEXT_DARK} !important;
+            font-weight: 500;
         }}
 
-        h1, h2, h3, h4 {{
-            font-family: 'EB Garamond', 'Garamond', serif !important;
+        /* Input Fields - Text Color inside boxes */
+        .stTextInput input, .stNumberInput input, .stTextArea textarea {{
+            color: {TEXT_DARK} !important;
+            -webkit-text-fill-color: {TEXT_DARK} !important;
+            caret-color: {TEXT_DARK} !important;
+        }}
+        
+        /* Selectbox Text */
+        div[data-baseweb="select"] div {{
+            color: {TEXT_DARK} !important;
+        }}
+
+        /* --- HEADERS --- */
+        h1, h2, h3, h4, .stHeading, h1 span, h2 span, h3 span {{
+            font-family: 'EB Garamond', serif !important;
             color: {PRIMARY_GREEN} !important;
             font-weight: 700 !important;
         }}
-
-        section[data-testid="stSidebar"] {{
-            background-color: {PRIMARY_GREEN};
+        
+        /* --- BUTTONS --- */
+        .stButton > button {{
+            background-color: {PRIMARY_GREEN} !important;
+            color: {WHITE} !important;
+            border-radius: 6px !important;
+            border: 1px solid {PRIMARY_GREEN} !important;
+            padding: 0.6rem 1.2rem !important;
+            font-family: 'Roboto', sans-serif !important;
+            font-weight: 500 !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
         }}
-        section[data-testid="stSidebar"] h1,
-        section[data-testid="stSidebar"] h2,
-        section[data-testid="stSidebar"] h3 {{
+        
+        /* Ensure text inside button is white */
+        .stButton > button p {{
+            color: {WHITE} !important;
+        }}
+        
+        .stButton > button:hover {{
+            background-color: {ACCENT_GREEN} !important;
+            border-color: {SECONDARY_GOLD} !important;
             color: {SECONDARY_GOLD} !important;
         }}
-        section[data-testid="stSidebar"] p,
-        section[data-testid="stSidebar"] span,
-        section[data-testid="stSidebar"] label,
-        section[data-testid="stSidebar"] div {{
-            color: white !important;
+        
+        /* --- TABLES --- */
+        /* Header Background */
+        thead tr th {{
+            background-color: {PRIMARY_GREEN} !important;
         }}
-
-        .stButton > button {{
-            background-color: {SECONDARY_GOLD};
-            color: {PRIMARY_GREEN};
-            border-radius: 6px;
-            border: none;
-            padding: 0.6rem 1.2rem;
-            font-weight: bold;
-            font-family: 'Roboto', sans-serif;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+        /* Header Text */
+        thead tr th span {{
+            color: {WHITE} !important;
         }}
-        .stButton > button:hover {{
-            background-color: #e5b020;
-            color: #00402a;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        /* Body Text */
+        tbody tr td {{
+            color: {TEXT_DARK} !important;
         }}
-
-        .css-card {{
-            background-color: white;
-            padding: 25px;
+        
+        /* --- SIDEBAR --- */
+        section[data-testid="stSidebar"] {{
+            background-color: {WHITE};
+            border-right: 1px solid #E5E7EB;
+        }}
+        section[data-testid="stSidebar"] p, section[data-testid="stSidebar"] span {{
+            color: {TEXT_DARK} !important;
+        }}
+        
+        /* --- METRIC CARDS --- */
+        .metric-card {{
+            background-color: {WHITE};
+            padding: 1.5rem;
             border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-            margin-bottom: 20px;
-            border-top: 4px solid {SECONDARY_GOLD};
-        }}
-
-        .landing-header {{
-            background: linear-gradient(135deg, {PRIMARY_GREEN} 0%, #004d33 100%);
-            padding: 40px 20px;
+            border-left: 6px solid {SECONDARY_GOLD};
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
             text-align: center;
-            color: white;
-            border-bottom: 6px solid {SECONDARY_GOLD};
-            margin-bottom: 30px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }}
-        .landing-title {{
-            font-family: 'EB Garamond', serif !important;
-            font-size: 3.5em;
-            margin: 0;
-            color: white !important;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
-        }}
-        .landing-subtitle {{
-            font-family: 'Roboto', sans-serif;
-            font-size: 1.2em;
-            color: {SECONDARY_GOLD};
+        .metric-label {{
+            font-size: 0.85rem;
+            color: #6B7280 !important; /* Slightly lighter gray for label */
             text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-top: 10px;
-        }}
-
-        div[data-testid="stMetricValue"] {{
-            color: {PRIMARY_GREEN} !important;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
             font-family: 'Roboto', sans-serif;
+            font-weight: 600;
         }}
-
-        .footer {{
-            text-align: center;
-            color: #888;
-            font-size: 0.8rem;
-            margin-top: 50px;
-            padding: 20px;
-            border-top: 1px solid #eee;
+        .metric-value {{
+            font-size: 2rem;
+            font-weight: 700;
+            color: {PRIMARY_GREEN} !important;
+            font-family: 'EB Garamond', serif !important;
         }}
+        
+        /* ALERTS */
+        .stAlert {{
+            background-color: #F0FDF4;
+            border: 1px solid {PRIMARY_GREEN};
+            color: {TEXT_DARK} !important;
+        }}
+        
         </style>
-    """,
+        """,
         unsafe_allow_html=True,
     )
 
 
 # -----------------------------------------------------------------------------
-# API CLIENT HELPER
+# UTILITIES
 # -----------------------------------------------------------------------------
-class ApiClient:
-    """Helper to communicate with FastAPI backend"""
-
-    @staticmethod
-    def login(username, password):
-        try:
-            res = requests.post(
-                f"{API_URL}/login", json={"username": username, "password": password}
-            )
-            return res.json()
-        except Exception:
-            return {
-                "success": False,
-                "message": "Server unavailable. Is backend running?",
-            }
-
-    @staticmethod
-    def change_password(username, old_pass, new_pass):
-        try:
-            res = requests.post(
-                f"{API_URL}/change-password",
-                json={
-                    "username": username,
-                    "old_password": old_pass,
-                    "new_password": new_pass,
-                },
-            )
-            if res.status_code == 200:
-                return True, res.json().get("message", "Success")
-            else:
-                return False, res.json().get("detail", "Failed")
-        except Exception as e:
-            return False, str(e)
-
-    @staticmethod
-    def get_stats():
-        try:
-            return requests.get(f"{API_URL}/stats").json()
-        except Exception:
-            return {}
-
-    @staticmethod
-    def get_transactions(student_id=None, status=None):
-        params = {}
-        if student_id:
-            params["student_id"] = student_id
-        if status:
-            params["status"] = status
-        try:
-            return requests.get(f"{API_URL}/transactions", params=params).json()
-        except Exception:
-            return []
-
-    @staticmethod
-    def get_transaction_by_id(txn_id):
-        try:
-            res = requests.get(f"{API_URL}/transactions/{txn_id}")
-            if res.status_code == 200:
-                return res.json()
-            return None
-        except Exception:
-            return None
-
-    @staticmethod
-    def create_transaction(data):
-        try:
-            res = requests.post(f"{API_URL}/transactions", json=data)
-            return res.status_code == 200
-        except Exception:
-            return False
-
-    @staticmethod
-    def approve_transaction(txn_id, admin_username, action):
-        try:
-            data = {
-                "txn_id": txn_id,
-                "admin_username": admin_username,
-                "action": action,
-            }
-            requests.put(f"{API_URL}/transactions/{txn_id}/approve", json=data)
-            return True
-        except Exception:
-            return False
-
-    @staticmethod
-    def get_users():
-        try:
-            return requests.get(f"{API_URL}/users").json()
-        except Exception:
-            return []
-
-    @staticmethod
-    def create_user(data):
-        try:
-            res = requests.post(f"{API_URL}/users", json=data)
-            return res.status_code == 200
-        except Exception:
-            return False
-
-    @staticmethod
-    def update_user(username, data):
-        try:
-            requests.put(f"{API_URL}/users/{username}", json=data)
-            return True
-        except Exception:
-            return False
+def convert_df_to_excel(df):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Sheet1')
+    return output.getvalue()
 
 
 # -----------------------------------------------------------------------------
 # PAGES
 # -----------------------------------------------------------------------------
 
-
 def login_page():
-    st.markdown(
-        """
-        <div class="landing-header">
-            <h1 class="landing-title">La Salle Academy</h1>
-            <div class="landing-subtitle">Financial Transparency Portal</div>
-        </div>
-    """,
-        unsafe_allow_html=True,
-    )
-
-    c1, c2 = st.columns([7, 5], gap="large")
-
-    with c1:
+    col1, col2, col3 = st.columns([1, 1.5, 1])
+    
+    with col2:
         st.markdown(
             f"""
-            <div style="padding: 20px;">
-                <h2 style="color: {PRIMARY_GREEN}; font-size: 2em; margin-bottom: 20px;">
-                    Integrity. Accountability. Excellence.
-                </h2>
-                <p style="font-size: 1.1em; line-height: 1.6; color: #555;">
-                    Welcome to the official financial system of La Salle Academy. This platform leverages
-                    secure, immutable ledger technology to provide real-time tracking of school fees
-                    and operational expenses.
-                </p>
-
-                <div style="display: flex; gap: 20px; margin-top: 30px;">
-                    <div class="css-card" style="flex: 1; text-align: center; border-top-color: {PRIMARY_GREEN};">
-                        <div style="font-size: 2em;">🔒</div>
-                        <h4 style="margin: 10px 0;">Secure</h4>
-                        <p style="font-size: 0.9em;">Immutable audit trails</p>
-                    </div>
-                    <div class="css-card" style="flex: 1; text-align: center; border-top-color: {PRIMARY_GREEN};">
-                        <div style="font-size: 2em;">📊</div>
-                        <h4 style="margin: 10px 0;">Transparent</h4>
-                        <p style="font-size: 0.9em;">Real-time reporting</p>
-                    </div>
+            <div style='text-align: center; margin-bottom: 2rem; padding-top: 4rem;'>
+                <div style='width: 90px; height: 90px; background-color: {PRIMARY_GREEN}; border-radius: 50%; margin: 0 auto 1.5rem; display: flex; align-items: center; justify-content: center; color: white; font-size: 2.2rem; font-family: "EB Garamond", serif; border: 4px solid {SECONDARY_GOLD}; box-shadow: 0 4px 10px rgba(0,0,0,0.1);'>
+                    LA
                 </div>
+                <h1 style='color: {PRIMARY_GREEN} !important; margin-bottom: 0.2rem; font-size: 2.5rem;'>La Salle Academy</h1>
+                <h3 style='color: #4B5563 !important; font-family: Roboto; font-weight: 300; font-size: 1.1rem; text-transform: uppercase; letter-spacing: 1px;'>Financial Transparency System</h3>
             </div>
-        """,
-            unsafe_allow_html=True,
+            """,
+            unsafe_allow_html=True
         )
-
-    with c2:
-        st.markdown(
-            f"""
-            <div class="css-card" style="border-top: 5px solid {SECONDARY_GOLD}; padding-top: 30px;">
-                <h3 style="text-align: center; margin-bottom: 20px;">System Login</h3>
-        """,
-            unsafe_allow_html=True,
-        )
-
+        
         with st.form("login_form"):
-            username = st.text_input(
-                "Username / Student ID", placeholder="e.g. S-2024-001 or admin"
-            )
-            password = st.text_input("Password", type="password")
+            st.markdown("<div style='margin-bottom: 1.5rem; text-align: center; color: #666 !important; font-size: 0.95rem;'>Please sign in to access the portal</div>", unsafe_allow_html=True)
+            username = st.text_input("Username", placeholder="Enter your ID/Username")
+            password = st.text_input("Password", type="password", placeholder="Enter your password")
+            
             st.markdown("<br>", unsafe_allow_html=True)
-            submit = st.form_submit_button("Sign In", use_container_width=True)
+            submitted = st.form_submit_button("SIGN IN", use_container_width=True)
 
-        if submit:
-            with st.spinner("Authenticating..."):
-                resp = ApiClient.login(username, password)
-                if resp.get("success"):
-                    st.session_state["logged_in"] = True
-                    st.session_state["role"] = resp["role"]
-                    st.session_state["username"] = username
-                    st.session_state["name"] = resp["name"]
-                    st.success("Success! Redirecting...")
-                    time.sleep(0.5)
-                    st.rerun()
-                else:
-                    st.error(resp.get("message", "Login failed"))
+            if submitted:
+                try:
+                    res = requests.post(
+                        f"{API_URL}/login",
+                        json={"username": username, "password": password},
+                    )
+                    data = res.json()
+                    if data.get("success"):
+                        st.session_state["logged_in"] = True
+                        st.session_state["role"] = data.get("role")
+                        st.session_state["username"] = username
+                        st.session_state["name"] = data.get("name")
+                        st.success(f"Welcome back, {data.get('name')}!")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error(data.get("message", "Login failed"))
+                except Exception as e:
+                    st.error(f"Connection Error: {e}")
 
+        # Guest access
         st.markdown(
             """
-                <div style="text-align: center; margin-top: 20px; font-size: 0.9em;">
-                    <p style="color: #888;">For verification only?</p>
-                </div>
+            <div style='text-align: center; margin-top: 1.5rem;'>
+                <span style='color: #9CA3AF !important; font-size: 0.85rem;'>Public Access? </span>
             </div>
-        """,
-            unsafe_allow_html=True,
+            """,
+            unsafe_allow_html=True
         )
-
-        if st.button("Guest Verification Tool", use_container_width=True):
+        if st.button("View Transparency Board (Guest)", use_container_width=True):
             st.session_state["logged_in"] = True
             st.session_state["role"] = "guest"
-            st.session_state["username"] = "Guest"
-            st.session_state["name"] = "Guest User"
+            st.session_state["name"] = "Guest Visitor"
             st.rerun()
-
-    st.markdown(
-        """
-        <div class="footer">
-            &copy; 2025 La Salle Academy. All Rights Reserved. <br>
-            Powered by Immudb Secure Ledger.
-        </div>
-    """,
-        unsafe_allow_html=True,
-    )
 
 
 def dashboard_page():
-    # Title adapts to role
-    title = (
-        "Transparency Board"
-        if st.session_state["role"] == "student"
-        else "Financial Dashboard"
-    )
-    st.markdown(f"<h2>📊 {title}</h2>", unsafe_allow_html=True)
+    st.title("📊 Financial Dashboard")
+    st.markdown(f"Overview of **Senior High School** financial activities.")
+    st.markdown("---")
+    
+    # 1. Fetch Statistics
+    try:
+        stats_res = requests.get(f"{API_URL}/stats")
+        stats = stats_res.json() if stats_res.status_code == 200 else {}
+    except:
+        stats = {}
 
-    if st.session_state["role"] == "student":
+    # Display Cards
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
         st.markdown(
-            """
-            <div class="css-card">
-                <p><strong>Transparency Note:</strong> This board shows the aggregate financial status of the entire school.
-                It allows you to see where collected funds are allocated (tuition, misc, orgs) vs expenses.</p>
-            </div>
-        """,
+            f"""<div class='metric-card'>
+            <div class='metric-label'>Tuition Fees</div>
+            <div class='metric-value'>₱{stats.get('total_tuition', 0):,.2f}</div>
+            </div>""",
             unsafe_allow_html=True,
         )
-    else:
-        st.write(f"Welcome back, **{st.session_state['name']}**")
+    with c2:
+        st.markdown(
+            f"""<div class='metric-card'>
+            <div class='metric-label'>Misc. Fees</div>
+            <div class='metric-value'>₱{stats.get('total_misc', 0):,.2f}</div>
+            </div>""",
+            unsafe_allow_html=True,
+        )
+    with c3:
+        st.markdown(
+            f"""<div class='metric-card'>
+            <div class='metric-label'>Org. Funds</div>
+            <div class='metric-value'>₱{stats.get('total_org', 0):,.2f}</div>
+            </div>""",
+            unsafe_allow_html=True,
+        )
+    with c4:
+        st.markdown(
+            f"""<div class='metric-card'>
+            <div class='metric-label'>Expenses</div>
+            <div class='metric-value' style='color: #B91C1C !important;'>₱{stats.get('total_expenses', 0):,.2f}</div>
+            </div>""",
+            unsafe_allow_html=True,
+        )
 
-    col_act, col_ref = st.columns([4, 1])
-    with col_ref:
-        if st.button("🔄 Refresh", use_container_width=True):
-            st.rerun()
+    st.markdown("<br>", unsafe_allow_html=True)
 
-    stats = ApiClient.get_stats()
-    if not stats:
-        st.warning("Unable to fetch live statistics. Backend may be offline.")
-        return
+    col1, col2 = st.columns([2, 1])
 
-    # Metrics Row
-    c1, c2, c3, c4 = st.columns(4)
+    with col1:
+        st.subheader("Financial Breakdown by Strand")
+        try:
+            # Fetch all transactions for visualization
+            res = requests.get(f"{API_URL}/transactions")
+            if res.status_code == 200:
+                txns = res.json()
+                if txns:
+                    df = pd.DataFrame(txns)
+                    df = df[df['status'] != 'Rejected']
+                    
+                    # Colors: Green for Collection, Red/Gold for Disbursement
+                    color_map = {"Collection": PRIMARY_GREEN, "Disbursement": "#B91C1C"}
+                    
+                    fig_bar = px.bar(
+                        df, x="strand", y="amount", color="txn_type", 
+                        barmode="group", 
+                        color_discrete_map=color_map,
+                        labels={"amount": "Amount (PHP)", "strand": "Strand"}
+                    )
+                    fig_bar.update_layout(
+                        plot_bgcolor="white",
+                        font_family="Roboto",
+                        paper_bgcolor="white",
+                        font=dict(color=TEXT_DARK)
+                    )
+                    st.plotly_chart(fig_bar, use_container_width=True)
+                else:
+                    st.info("No transaction data available.")
+        except Exception as e:
+            st.error(f"Error loading charts: {e}")
 
-    def metric_tile(col, label, value):
-        with col:
-            st.markdown(
-                f"""
-                <div class="css-card" style="padding: 15px; text-align: center; border-left: 5px solid {SECONDARY_GOLD}; border-top: none;">
-                    <div style="font-size: 0.85em; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">{label}</div>
-                    <div style="font-size: 1.6em; color: {PRIMARY_GREEN}; font-weight: bold; margin: 5px 0;">{value}</div>
-                </div>
-            """,
-                unsafe_allow_html=True,
-            )
-
-    metric_tile(c1, "Total Tuition", f"₱{stats.get('total_tuition', 0):,.2f}")
-    metric_tile(c2, "Miscellaneous", f"₱{stats.get('total_misc', 0):,.2f}")
-    metric_tile(c3, "Org Funds", f"₱{stats.get('total_org', 0):,.2f}")
-
-    # Hide Pending Counts for students to keep it clean, show for admins
-    if st.session_state["role"] == "student":
-        metric_tile(c4, "Total Expenses", f"₱{stats.get('total_expenses', 0):,.2f}")
-    else:
-        metric_tile(c4, "Pending Actions", stats.get("pending_count", 0))
-
-    # Charts
-    txns = ApiClient.get_transactions()
-    if txns:
-        df = pd.DataFrame(txns)
-
-        c_left, c_right = st.columns(2)
-
-        with c_left:
-            st.markdown('<div class="css-card">', unsafe_allow_html=True)
-            st.subheader("Revenue vs Expenses")
-            if not df.empty:
-                pie_data = df.groupby("txn_type")["amount"].sum().reset_index()
-                fig1 = px.pie(
-                    pie_data,
-                    values="amount",
-                    names="txn_type",
-                    color_discrete_sequence=[
-                        PRIMARY_GREEN,
-                        SECONDARY_GOLD,
-                        "#2E8B57",
-                        "#DAA520",
-                    ],
-                )
-                fig1.update_layout(margin=dict(t=20, b=20, l=20, r=20))
-                st.plotly_chart(fig1, use_container_width=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        with c_right:
-            st.markdown('<div class="css-card">', unsafe_allow_html=True)
-            st.subheader("Collection by Strand")
-            if not df.empty:
-                bar_data = (
-                    df[df["txn_type"] == "Collection"]
-                    .groupby("strand")["amount"]
-                    .sum()
-                    .reset_index()
-                )
-                fig2 = px.bar(
-                    bar_data,
-                    x="strand",
-                    y="amount",
-                    color_discrete_sequence=[PRIMARY_GREEN],
-                )
-                fig2.update_layout(margin=dict(t=20, b=20, l=20, r=20))
-                st.plotly_chart(fig2, use_container_width=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        # Data Table
-        if st.session_state["role"] != "student":
-            st.markdown('<div class="css-card">', unsafe_allow_html=True)
-            st.subheader("Recent School Transactions")
-            st.dataframe(
-                df[
-                    ["id", "created_at", "txn_type", "amount", "status", "recorded_by"]
-                ].head(5),
-                use_container_width=True,
-            )
-
-            csv = df.to_csv(index=False).encode("utf-8")
+    with col2:
+        st.subheader("Fund Distribution")
+        if 'df' in locals() and not df.empty:
             st.download_button(
-                "📥 Download Full CSV Report", csv, "financial_report.csv", "text/csv"
+                label="📥 Export Report (Excel)",
+                data=convert_df_to_excel(df),
+                file_name='financial_report.xlsx',
+                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                use_container_width=True
             )
-            st.markdown("</div>", unsafe_allow_html=True)
-    else:
-        st.info("No transaction data available.")
-
-
-def student_ledger_page():
-    """Student Specific View"""
-    st.markdown("<h2>📒 My Financial Ledger</h2>", unsafe_allow_html=True)
-
-    st.markdown(
-        f"""
-        <div class="css-card">
-            <h4>Student: {st.session_state["name"]}</h4>
-            <p style="color: #666;">ID: {st.session_state["username"]}</p>
-        </div>
-    """,
-        unsafe_allow_html=True,
-    )
-
-    # Fetch ONLY this student's transactions
-    my_txns = ApiClient.get_transactions(student_id=st.session_state["username"])
-
-    if my_txns:
-        df = pd.DataFrame(my_txns)
-
-        # Calculate totals
-        total_paid = df[df["status"] == "Approved"]["amount"].sum()
-        pending = df[df["status"] == "Pending"]["amount"].sum()
-
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown(
-                f"""
-                <div class="css-card" style="border-left: 5px solid {PRIMARY_GREEN}; text-align: center;">
-                    <div style="font-size: 0.9em; color: #888;">TOTAL PAID</div>
-                    <div style="font-size: 1.8em; color: {PRIMARY_GREEN}; font-weight: bold;">₱{total_paid:,.2f}</div>
-                </div>
-            """,
-                unsafe_allow_html=True,
+            
+            fig_pie = px.pie(
+                df, names="category", values="amount", 
+                color_discrete_sequence=px.colors.sequential.Greens_r
             )
-        with c2:
-            st.markdown(
-                f"""
-                <div class="css-card" style="border-left: 5px solid orange; text-align: center;">
-                    <div style="font-size: 0.9em; color: #888;">PENDING VALIDATION</div>
-                    <div style="font-size: 1.8em; color: orange; font-weight: bold;">₱{pending:,.2f}</div>
-                </div>
-            """,
-                unsafe_allow_html=True,
-            )
-
-        st.markdown('<div class="css-card">', unsafe_allow_html=True)
-        st.subheader("Transaction History")
-
-        # Display readable table
-        display_df = df[
-            [
-                "created_at",
-                "category",
-                "description",
-                "amount",
-                "status",
-                "proof_reference",
-                "id",
-            ]
-        ]
-        st.dataframe(display_df, use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    else:
-        st.info("No records found linked to your Student ID.")
+            fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+            fig_pie.update_layout(font_family="Roboto", font=dict(color=TEXT_DARK))
+            st.plotly_chart(fig_pie, use_container_width=True)
 
 
 def transaction_entry_page():
-    st.markdown("<h2>📝 New Transaction</h2>", unsafe_allow_html=True)
+    st.title("📝 Transaction Management")
+    st.markdown("Record and view recent transactions.")
+    st.markdown("---")
 
-    st.markdown('<div class="css-card">', unsafe_allow_html=True)
-    with st.form("entry_form"):
-        c1, c2 = st.columns(2)
-        txn_type = c1.selectbox("Transaction Type", ["Collection", "Disbursement"])
-        strand = c2.selectbox("Strand", STRANDS)
-        category = st.selectbox("Category", CATEGORIES[txn_type])
-        student_id = st.text_input(
-            "Student ID (Optional)", placeholder="e.g., S-2024-001"
-        )
-        desc = st.text_area("Description / Particulars")
-        amount = st.number_input("Amount (PHP)", min_value=0.0, step=0.01)
-        proof = st.text_input("Reference/Receipt #")
+    # Split View: Left (Form) | Right (List)
+    col_form, col_list = st.columns([1, 1.5], gap="large")
 
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.form_submit_button("Submit to Ledger"):
-            data = {
-                "recorded_by": st.session_state["username"],
-                "txn_type": txn_type,
-                "strand": strand,
-                "category": category,
-                "description": desc,
-                "amount": amount,
-                "student_id": student_id,
-                "proof_reference": proof,
-            }
-            if ApiClient.create_transaction(data):
-                st.success(
-                    "Transaction successfully recorded! It is now pending approval."
-                )
-                time.sleep(1.5)
-                st.rerun()
-            else:
-                st.error("Failed to record transaction.")
-    st.markdown("</div>", unsafe_allow_html=True)
+    # --- LEFT SIDE: INPUT FORM ---
+    with col_form:
+        st.markdown(f"#### New Entry")
+        st.caption("All fields are required.")
+        
+        with st.form("txn_form", clear_on_submit=True):
+            txn_type = st.selectbox("Transaction Type", ["Collection", "Disbursement"])
+            
+            c1, c2 = st.columns(2)
+            with c1:
+                strand = st.selectbox("Strand", STRANDS)
+            with c2:
+                # Dynamic categories logic could be improved with JS, but pure python reload is needed
+                cat_options = CATEGORIES.get(txn_type, [])
+                category = st.selectbox("Category", cat_options)
+            
+            amount = st.number_input("Amount (PHP)", min_value=0.0, step=0.01)
+            student_id = st.text_input("Student ID (If applicable)")
+            description = st.text_area("Description / Purpose")
 
+            uploaded_file = st.file_uploader("Attach Proof (Receipt/Slip)", type=['png', 'jpg', 'jpeg', 'pdf'])
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            submitted = st.form_submit_button("Submit Record", use_container_width=True)
+            
+            if submitted:
+                proof_ref = None
+                
+                # File Upload Handler
+                if uploaded_file is not None:
+                    with st.spinner("Uploading proof..."):
+                        try:
+                            files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
+                            upload_res = requests.post(f"{API_URL}/files/upload", files=files)
+                            if upload_res.status_code == 200:
+                                proof_ref = upload_res.json().get("path")
+                            else:
+                                st.error("Failed to upload receipt.")
+                                st.stop()
+                        except Exception as e:
+                            st.error(f"Upload error: {e}")
+                            st.stop()
 
-def audit_trail_page():
-    st.markdown("<h2>📜 Immutable Audit Trail</h2>", unsafe_allow_html=True)
+                payload = {
+                    "recorded_by": st.session_state.get("username", "unknown"),
+                    "txn_type": txn_type,
+                    "strand": strand,
+                    "category": category,
+                    "description": description,
+                    "amount": amount,
+                    "student_id": student_id,
+                    "proof_reference": proof_ref
+                }
+                
+                try:
+                    res = requests.post(f"{API_URL}/transactions", json=payload)
+                    if res.status_code == 200:
+                        data = res.json()
+                        status = data.get("status", "Unknown")
+                        
+                        st.success(f"✅ Recorded Successfully! Status: {status}")
+                        if status == "Approved":
+                             st.info("Collection recorded and verified automatically.")
+                        else:
+                             st.info("Disbursement request submitted for approval.")
+                    else:
+                        st.error(f"Error: {res.text}")
+                except Exception as e:
+                    st.error(f"Connection Error: {e}")
 
-    st.markdown('<div class="css-card">', unsafe_allow_html=True)
-    c1, c2 = st.columns(2)
-    search_student = c1.text_input("Search by Student ID")
-    filter_status = c2.selectbox(
-        "Filter Status", ["All", "Pending", "Approved", "Rejected"]
-    )
-
-    status_param = None if filter_status == "All" else filter_status
-    txns = ApiClient.get_transactions(student_id=search_student, status=status_param)
-
-    if txns:
-        df = pd.DataFrame(txns)
-        cols = [
-            "id",
-            "created_at",
-            "status",
-            "txn_type",
-            "amount",
-            "student_id",
-            "recorded_by",
-            "proof_reference",
-        ]
-        st.dataframe(df[cols], use_container_width=True)
-    else:
-        st.info("No records found matching filters.")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
-def verification_page():
-    st.markdown("<h2>🔍 Verification Tool</h2>", unsafe_allow_html=True)
-
-    st.markdown(
-        f"""
-        <div class="css-card">
-            <h4 style="color:{TEXT_DARK} !important;">Verify a Receipt</h4>
-            <p>Enter the unique Transaction ID to check its validity against the immutable ledger.</p>
-        </div>
-    """,
-        unsafe_allow_html=True,
-    )
-
-    c1, c2 = st.columns([1, 2])
-    with c1:
-        txn_id_input = st.number_input("Transaction ID", min_value=1, step=1)
-
-    with c2:
-        st.write("")  # Spacer
-        st.write("")
-        if st.button("Verify Now"):
-            with st.spinner("Querying Ledger..."):
-                txn = ApiClient.get_transaction_by_id(txn_id_input)
-                if txn:
-                    st.success("✅ Transaction Found & Verified")
-
-                    st.markdown(
-                        f"""
-                        <div style="background-color: #fff; border: 2px solid {PRIMARY_GREEN}; padding: 30px; border-radius: 8px; margin-top: 20px;">
-                            <div style="text-align: center; border-bottom: 1px solid #ddd; padding-bottom: 15px; margin-bottom: 15px;">
-                                <h3 style="margin: 0;">OFFICIAL RECEIPT</h3>
-                                <div style="color: #666; font-size: 0.9em;">La Salle Academy Finance</div>
-                            </div>
-                            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 10px;">
-                                <strong>ID:</strong> <span>{txn["id"]}</span>
-                                <strong>Date:</strong> <span>{txn["created_at"]}</span>
-                                <strong>Amount:</strong> <span style="font-size: 1.2em; font-weight: bold; color: {PRIMARY_GREEN};">₱{txn["amount"]:,.2f}</span>
-                                <strong>Type:</strong> <span>{txn["txn_type"]} ({txn["category"]})</span>
-                                <strong>Ref #:</strong> <span>{txn["proof_reference"]}</span>
-                                <strong>Status:</strong> <span>{txn["status"]}</span>
-                            </div>
-                            <div style="margin-top: 20px; text-align: center; font-size: 0.8em; color: #888;">
-                                Digital Signature Verified by Immudb
-                            </div>
-                        </div>
-                    """,
-                        unsafe_allow_html=True,
-                    )
+    # --- RIGHT SIDE: RECENT LIST ---
+    with col_list:
+        st.markdown(f"#### Recent Records")
+        st.caption("Most recent transactions.")
+        
+        try:
+            res = requests.get(f"{API_URL}/transactions?limit=10")
+            if res.status_code == 200:
+                txns = res.json()
+                if txns:
+                    df = pd.DataFrame(txns)
+                    # Simplified table for sidebar view
+                    display_df = df[['created_at', 'category', 'amount', 'status']]
+                    display_df.columns = ['Date', 'Category', 'Amount', 'Status']
+                    st.dataframe(display_df, use_container_width=True, hide_index=True)
                 else:
-                    st.error("❌ Transaction Not Found. Please check the ID.")
+                    st.info("No records found.")
+        except:
+            st.error("Could not load recent records.")
 
 
 def pending_approvals_page():
-    st.markdown("<h2>✅ Pending Approvals</h2>", unsafe_allow_html=True)
-    txns = ApiClient.get_transactions(status="Pending")
+    st.title("⏳ Pending Approvals")
+    st.markdown("Review and approve transaction requests.")
+    st.markdown("---")
+    
+    try:
+        res = requests.get(f"{API_URL}/transactions?status=Pending")
+        pending = res.json() if res.status_code == 200 else []
+            
+        if not pending:
+            st.info("✅ All caught up! No pending transactions.")
+            return
 
-    if not txns:
-        st.info("No transactions waiting for approval.")
-        return
+        for txn in pending:
+            with st.container():
+                st.markdown(f"##### {txn['category']} - ₱{txn['amount']:,.2f}")
+                
+                c1, c2, c3 = st.columns([2, 1, 1])
+                with c1:
+                    st.caption(f"Recorded by: {txn['recorded_by']} | Date: {txn['created_at']}")
+                    st.text(f"Note: {txn['description']}")
+                    if txn.get('proof_reference'):
+                        st.markdown(f"📎 [View Attachment]({API_URL}/{txn['proof_reference']})")
+                
+                with c2:
+                    if st.button("Approve", key=f"app_{txn['id']}", use_container_width=True):
+                        payload = {"admin_username": st.session_state["username"], "action": "Approve"}
+                        r = requests.put(f"{API_URL}/transactions/{txn['id']}/approve", json=payload)
+                        if r.status_code == 200:
+                            st.success("Approved!")
+                            time.sleep(0.5)
+                            st.rerun()
+                with c3:
+                    if st.button("Reject", key=f"rej_{txn['id']}", use_container_width=True):
+                        payload = {"admin_username": st.session_state["username"], "action": "Reject"}
+                        r = requests.put(f"{API_URL}/transactions/{txn['id']}/approve", json=payload)
+                        if r.status_code == 200:
+                            st.warning("Rejected.")
+                            time.sleep(0.5)
+                            st.rerun()
+                st.divider()
 
-    for txn in txns:
-        with st.expander(
-            f"#{txn['id']} - {txn['txn_type']} - ₱{txn['amount']:,.2f} ({txn['recorded_by']})"
-        ):
-            c1, c2 = st.columns(2)
-            c1.write(f"**Desc:** {txn['description']}")
-            c1.write(f"**Ref:** {txn['proof_reference']}")
-            c2.write(f"**Cat:** {txn['category']}")
-            c2.write(f"**Student:** {txn['student_id']}")
-
-            b1, b2, b3 = st.columns([1, 1, 3])
-            if b1.button("Approve", key=f"app_{txn['id']}"):
-                if ApiClient.approve_transaction(
-                    txn["id"], st.session_state["username"], "Approve"
-                ):
-                    st.success("Approved!")
-                    time.sleep(0.5)
-                    st.rerun()
-
-            if b2.button("Reject", key=f"rej_{txn['id']}"):
-                if ApiClient.approve_transaction(
-                    txn["id"], st.session_state["username"], "Reject"
-                ):
-                    st.warning("Rejected.")
-                    time.sleep(0.5)
-                    st.rerun()
+    except Exception as e:
+        st.error(f"Connection Error: {e}")
 
 
-def user_management_page():
-    st.markdown("<h2>👥 User Management</h2>", unsafe_allow_html=True)
+def audit_trail_page():
+    st.title("🔍 Audit Trail")
+    st.markdown("Immutable record of all transactions secured by **Immudb**.")
+    st.markdown("---")
 
-    st.markdown('<div class="css-card">', unsafe_allow_html=True)
-    tab1, tab2 = st.tabs(["View Users", "Add New User"])
-
-    with tab1:
-        users = ApiClient.get_users()
-        if users:
-            df = pd.DataFrame(users)
-            st.dataframe(df, use_container_width=True)
-
-            st.markdown("#### Manage Access")
-            c_sel, c_btn = st.columns([3, 1])
-            target_user = c_sel.selectbox("Select User", [u["username"] for u in users])
-            if c_btn.button("Toggle Status"):
-                current_status = next(
-                    (u["active"] for u in users if u["username"] == target_user), True
+    try:
+        res = requests.get(f"{API_URL}/transactions")
+        if res.status_code == 200:
+            data = res.json()
+            if data:
+                df = pd.DataFrame(data)
+                
+                # Show hash prominently
+                st.markdown("##### 🧾 Complete Ledger")
+                st.dataframe(
+                    df[["id", "created_at", "txn_type", "amount", "status", "tx_hash"]], 
+                    use_container_width=True
                 )
-                ApiClient.update_user(target_user, {"active": not current_status})
-                st.success(f"Status for {target_user} toggled.")
-                time.sleep(1)
-                st.rerun()
 
-    with tab2:
-        with st.form("new_user_form"):
-            new_user = st.text_input("Username")
-            new_name = st.text_input("Full Name")
-            new_pass = st.text_input("Password", type="password")
-            new_role = st.selectbox("Role", ROLES.keys())
+                st.download_button(
+                    label="📥 Download Official Audit Log",
+                    data=convert_df_to_excel(df),
+                    file_name='audit_trail_log.xlsx',
+                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                )
+            else:
+                st.info("No records found.")
+        else:
+            st.error("Failed to fetch audit trail.")
+    except Exception as e:
+        st.error(f"Connection error: {e}")
 
-            if st.form_submit_button("Create User"):
-                if new_user and new_pass:
-                    data = {
-                        "username": new_user,
-                        "password": new_pass,
-                        "name": new_name,
-                        "role": new_role,
-                        "active": True,
-                    }
-                    if ApiClient.create_user(data):
-                        st.success("User created successfully!")
-                    else:
-                        st.error("Failed. Username might exist.")
-    st.markdown("</div>", unsafe_allow_html=True)
+
+def student_ledger_page():
+    st.title("📖 My Ledger")
+    st.markdown("Check your personal transaction history.")
+    st.markdown("---")
+    
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        sid = st.text_input("Enter Student ID:", placeholder="e.g., 2023-0001")
+    
+    if sid:
+        try:
+            res = requests.get(f"{API_URL}/transactions?student_id={sid}")
+            if res.status_code == 200:
+                data = res.json()
+                if data:
+                    df = pd.DataFrame(data)
+                    st.success(f"Found {len(data)} records.")
+                    st.table(df[["created_at", "category", "description", "amount", "status"]])
+                else:
+                    st.warning("No records found for this Student ID.")
+            else:
+                st.error("Search failed.")
+        except Exception as e:
+            st.error(f"Error: {e}")
+
+
+def verification_page():
+    st.title("✅ Verification")
+    st.markdown("Cryptographically verify data integrity against the immutable ledger.")
+    st.markdown("---")
+    
+    txn_id = st.text_input("Enter Transaction ID:", placeholder="e.g., 105")
+    
+    if st.button("Verify Integrity", type="primary"):
+        if not txn_id:
+            st.warning("Please enter an ID.")
+            return
+            
+        try:
+            with st.spinner("Querying Immudb Verification Proof..."):
+                res = requests.get(f"{API_URL}/verify/{txn_id}")
+                
+                if res.status_code == 200:
+                    data = res.json()
+                    st.success("✅ INTEGRITY CONFIRMED")
+                    
+                    st.markdown("### Proof Details")
+                    st.json(data)
+                    st.success("The cryptographic proof returned by the database matches the local Merkle Root. This record has NOT been tampered with.")
+                else:
+                    st.error("❌ VERIFICATION FAILED")
+                    st.error("The record does not match the cryptographic proof. Potential tampering detected.")
+        except Exception as e:
+            st.error(f"Connection Error: {e}")
 
 
 def settings_page():
-    st.markdown("<h2>⚙️ Settings</h2>", unsafe_allow_html=True)
-
-    st.markdown('<div class="css-card">', unsafe_allow_html=True)
-    st.subheader("Security")
-    with st.form("pwd_change"):
-        old = st.text_input("Current Password", type="password")
-        new = st.text_input("New Password", type="password")
-        confirm = st.text_input("Confirm Password", type="password")
-
+    st.title("⚙️ Settings")
+    st.markdown(f"Manage account for **{st.session_state.get('name')}**")
+    st.markdown("---")
+    
+    with st.form("change_pass"):
+        st.subheader("Change Password")
+        new_pass = st.text_input("New Password", type="password")
+        confirm_pass = st.text_input("Confirm New Password", type="password")
+        
         if st.form_submit_button("Update Password"):
-            if new != confirm:
-                st.error("New passwords do not match.")
-            elif not old or not new:
-                st.error("All fields are required.")
+            if new_pass == confirm_pass:
+                payload = {"password": new_pass}
+                username = st.session_state["username"]
+                try:
+                    res = requests.put(f"{API_URL}/users/{username}", json=payload)
+                    if res.status_code == 200:
+                        st.success("Password updated successfully.")
+                    else:
+                        st.error("Update failed.")
+                except:
+                    st.error("Connection failed.")
             else:
-                success, msg = ApiClient.change_password(
-                    st.session_state["username"], old, new
-                )
-                if success:
-                    st.success("Password updated.")
-                else:
-                    st.error(f"Error: {msg}")
-    st.markdown("</div>", unsafe_allow_html=True)
+                st.error("Passwords do not match.")
+
+
+def user_management_page():
+    st.title("👥 User Management")
+    st.markdown("Manage system access and roles.")
+    st.markdown("---")
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.subheader("System Users")
+        try:
+            res = requests.get(f"{API_URL}/users")
+            if res.status_code == 200:
+                users = res.json()
+                if users:
+                    df = pd.DataFrame(users)
+                    st.dataframe(df[['username', 'name', 'role', 'active']], use_container_width=True)
+        except:
+            st.error("Could not fetch users.")
+
+    with col2:
+        st.subheader("Add User")
+        with st.form("new_user"):
+            new_user = st.text_input("Username")
+            new_pass = st.text_input("Password", type="password")
+            new_name = st.text_input("Full Name")
+            new_role = st.selectbox("Role", list(ROLES.keys()))
+            
+            if st.form_submit_button("Create User", use_container_width=True):
+                payload = {
+                    "username": new_user, "password": new_pass,
+                    "name": new_name, "role": new_role, "active": True
+                }
+                try:
+                    res = requests.post(f"{API_URL}/users", json=payload)
+                    if res.status_code == 200:
+                        st.success("User created!")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error(f"Failed: {res.text}")
+                except:
+                    st.error("Connection failed.")
 
 
 # -----------------------------------------------------------------------------
-# MAIN APP LOOP
+# MAIN APP
 # -----------------------------------------------------------------------------
-
-
 def main():
     st.set_page_config(
-        page_title="LSA Financial Portal",
+        page_title="Financial Transparency System",
+        page_icon="🏫",
         layout="wide",
-        page_icon="🏛️",
-        initial_sidebar_state="expanded",
+        initial_sidebar_state="expanded"
     )
-
-    # Apply Custom CSS
     inject_custom_css()
 
-    # Initialize Session
     if "logged_in" not in st.session_state:
         st.session_state["logged_in"] = False
+        st.session_state["role"] = None
 
-    # Routing
     if not st.session_state["logged_in"]:
         login_page()
     else:
-        # Sidebar branding
-        with st.sidebar:
-            st.markdown(
-                f"""
-                <div style="text-align: center; margin-bottom: 20px; padding: 10px;">
-                    <div style="font-size: 3em; line-height: 1;">🏛️</div>
-                    <h2 style="color: {SECONDARY_GOLD} !important; margin: 10px 0;">La Salle Academy</h2>
-                    <p style="color: #ccc; font-size: 0.9em; margin: 0;">Financial Portal</p>
-                </div>
-                <hr style="border-top: 1px solid rgba(255,255,255,0.2);">
-            """,
-                unsafe_allow_html=True,
-            )
+        role = st.session_state.get("role")
+        
+        # Sidebar with custom styling
+        st.sidebar.markdown(f"<div style='text-align: center; color: {PRIMARY_GREEN}; font-family: serif; font-size: 1.2rem; font-weight: bold;'>La Salle Academy</div>", unsafe_allow_html=True)
+        st.sidebar.markdown("---")
+        st.sidebar.markdown(f"👤 **{st.session_state.get('name', 'User')}**")
+        st.sidebar.caption(f"Role: {ROLES.get(role, role)}")
+        st.sidebar.markdown("---")
 
-            st.caption(f"Logged in as: {st.session_state['name']}")
-
-        role = st.session_state["role"]
-
-        # Build Navigation based on Role
         options = []
-
-        # Dashboard is "Transparency Board" for students
-        if role == "student":
+        if role == "guest":
             options.append("Transparency Board")
             options.append("My Ledger")
         elif role != "guest":
@@ -859,7 +713,8 @@ def main():
 
         options.append("Logout")
 
-        choice = st.sidebar.radio("Main Menu", options)
+        # Radio button navigation
+        choice = st.sidebar.radio("Navigation", options, label_visibility="collapsed")
 
         # Page Render
         if choice == "Dashboard" or choice == "Transparency Board":
