@@ -68,6 +68,12 @@ def seed_users(client: ImmudbClient):
                     "it",
                     "System Admin",
                 ),
+                (
+                    "S-2024-001",
+                    get_password_hash("student123"),
+                    "student",
+                    "Juan Dela Cruz",
+                ),
             ]
 
             for u in users_to_seed:
@@ -86,7 +92,7 @@ def init_db():
     try:
         client = get_db_client()
 
-        # 1. Create Transactions Table (Updated with proof_reference)
+        # 1. Create Transactions Table
         # Note: In immudb, altering tables can be strict. If table exists, this assumes
         # it matches or we are starting fresh.
         client.sqlExec("""
@@ -121,7 +127,7 @@ def init_db():
             )
         """)
 
-        # 3. Create Index for faster lookups (Optional but good practice)
+        # 3. Create Index for faster lookups
         try:
             client.sqlExec("CREATE INDEX ON transactions(student_id)")
             client.sqlExec("CREATE INDEX ON transactions(status)")
