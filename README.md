@@ -38,10 +38,17 @@ streamlit run frontend_test.py
 oh shit also make a `.env`
 kani ra sulod
 ```
-INITIAL_ADMIN_PASS=MySecretAdminPass123!
-INITIAL_STAFF_PASS=StaffSecure2024
-INITIAL_AUDITOR_PASS=AuditMeIfYouCan
-INITIAL_IT_PASS=ITPotential
+INITIAL_ADMIN_PASS=admin123
+INITIAL_STAFF_PASS=staff123
+INITIAL_AUDITOR_PASS=auditor123
+INITIAL_IT_PASS=it123
+INITIAL_PAYABLES_PASS=payables123
+INITIAL_VP_FINANCE_PASS=vpfinance123
+INITIAL_PRESIDENT_PASS=president123
+INITIAL_PROCUREMENT_PASS=procurement123
+INITIAL_DEPT_HEAD_PASS=depthead123
+INITIAL_BOOKKEEPER_PASS=bookkeeper123
 ```
 
+or yk j run reset_users.py and see what it is
 

@@ -21,22 +21,26 @@ def get_stats():
         expenses = 0.0
         pending = 0
 
+        collections_by_category = {}
+        disbursements_by_category = {}
+
+        def bump(map_obj, key, amt):
+            map_obj[key] = map_obj.get(key, 0) + amt
+
         for row in result:
             txn_type = row[0]
-            category = row[1]
+            category = row[1] or "Uncategorized"
             # Amount is stored as integer cents in DB, convert to float
             amount = row[2] / 100.0
             status = row[3]
 
             if status == "Pending":
                 pending += 1
-                # We usually don't include Pending transactions in the financial totals
-                # to prevent inflated numbers before approval.
                 continue
 
-            # Logic for Approved/Completed transactions
             if txn_type == "Disbursement":
                 expenses += amount
+                bump(disbursements_by_category, category, amount)
             elif txn_type == "Collection":
                 if category == "Tuition Fee":
                     tuition += amount
@@ -44,7 +48,7 @@ def get_stats():
                     misc += amount
                 elif category == "Organization Fund":
                     org += amount
-                # 'Donation' or others can be added here if needed
+                bump(collections_by_category, category, amount)
 
         return {
             "total_tuition": tuition,
@@ -52,6 +56,8 @@ def get_stats():
             "total_org": org,
             "total_expenses": expenses,
             "pending_count": pending,
+            "collections_by_category": collections_by_category,
+            "disbursements_by_category": disbursements_by_category,
         }
     except Exception as e:
         print(f"Stats Error: {e}")

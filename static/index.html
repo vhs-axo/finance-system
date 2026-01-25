@@ -18,6 +18,7 @@
             --text-dark: #1F2937;
             --white: #FFFFFF;
             --danger: #B91C1C;
+            --muted: #6b7280;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -107,8 +108,138 @@
             margin: 0 auto 20px;
         }
 
+        /* Header */
+        #site-header {
+            background-color: var(--primary-green);
+            color: var(--white);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            z-index: 100;
+        }
+        .header-left {
+            display: flex;
+            flex-direction: column;
+        }
+        .header-title {
+            font-weight: 700;
+            font-size: 1.5rem;
+            color: var(--white);
+            margin: 0;
+            font-family: 'EB Garamond', serif;
+        }
+        .header-subtitle {
+            font-size: 0.9rem;
+            color: var(--white);
+            margin: 2px 0 0 0;
+            opacity: 0.95;
+        }
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .header-user-info {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+        .header-username {
+            font-weight: 700;
+            font-size: 1rem;
+            color: var(--white);
+            margin: 0;
+        }
+        .header-role {
+            font-size: 0.85rem;
+            color: var(--white);
+            margin: 2px 0 0 0;
+            opacity: 0.9;
+            text-transform: capitalize;
+        }
+        .header-logout {
+            background-color: var(--white);
+            color: var(--primary-green);
+            border: 1px solid var(--white);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .header-logout:hover {
+            background-color: #f0f0f0;
+            border-color: var(--primary-green);
+        }
+
+        /* Footer */
+        #site-footer {
+            background-color: var(--primary-green);
+            color: var(--white);
+            padding: 30px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 30px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .footer-section h4 {
+            font-weight: 700;
+            font-size: 1rem;
+            color: var(--white);
+            margin: 0 0 12px 0;
+        }
+        .footer-section p, .footer-section a {
+            color: var(--white);
+            font-size: 0.9rem;
+            margin: 4px 0;
+            opacity: 0.9;
+            text-decoration: none;
+        }
+        .footer-section a:hover {
+            opacity: 1;
+            text-decoration: underline;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            #site-header {
+                padding: 12px 20px;
+                flex-wrap: wrap;
+            }
+            .header-title {
+                font-size: 1.2rem;
+            }
+            .header-right {
+                gap: 12px;
+            }
+            .header-logout {
+                padding: 6px 12px;
+                font-size: 0.9rem;
+            }
+            #site-footer {
+                grid-template-columns: 1fr;
+                gap: 20px;
+                padding: 20px;
+            }
+        }
+
         /* Sidebar & Layout */
-        #app-layout { display: flex; height: 100vh; overflow: hidden; }
+        #app-layout { 
+            display: flex; 
+            flex-direction: column;
+            height: 100vh; 
+            overflow: hidden; 
+            background: linear-gradient(135deg, #f7f9fb 0%, #eef2f5 100%); 
+        }
+        #app-main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
         #sidebar {
             width: 260px;
             background: var(--white);
@@ -116,6 +247,11 @@
             padding: 20px;
             display: flex;
             flex-direction: column;
+            flex-shrink: 0;
+            overflow-y: auto;
+            position: relative;
+            z-index: 1;
+            height: 100%;
         }
         .nav-item {
             padding: 12px 15px;
@@ -130,7 +266,11 @@
             color: var(--primary-green);
             font-weight: 700;
         }
-        #content { flex: 1; padding: 30px; overflow-y: auto; }
+        #content { 
+            flex: 1; 
+            padding: 30px; 
+            overflow-y: auto;
+        }
 
         /* Dashboard */
         .stats-grid {
@@ -160,12 +300,12 @@
             width: 100%;
             border-collapse: collapse;
             background: var(--white);
-            border-radius: 8px;
+            border-radius: 10px;
             overflow: hidden;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.06);
         }
         th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; }
-        th { background-color: var(--primary-green); color: var(--white); font-weight: 500; }
+        th { background-color: var(--primary-green); color: var(--white); font-weight: 500; letter-spacing: 0.3px; }
 
         /* Transaction Layout */
         .txn-layout { display: grid; grid-template-columns: 1fr 1.5fr; gap: 30px; }
@@ -179,6 +319,160 @@
         }
         #toast.show { transform: translateY(0); }
         #toast.error { background: var(--danger); }
+
+        /* Ledger & Audit */
+        .module-card {
+            background: var(--white);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.06);
+            margin-bottom: 18px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            background: #e5f2ed;
+            color: var(--primary-green);
+            border: 1px solid #d1e7de;
+        }
+        .status-badge { padding: 6px 12px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; }
+        .status-approved { background: #e6f6ed; color: #0f5132; }
+        .status-pending { background: #fff7e6; color: #b45309; }
+        .status-rejected { background: #fee2e2; color: #991b1b; }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+        }
+        .calendar-cell {
+            background: var(--white);
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        .calendar-cell.selected-day {
+            border: 2px solid var(--secondary-gold);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+        }
+        .calendar-cell.date-in-range {
+            background: #e6f6ed;
+            border: 2px solid var(--primary-green);
+        }
+        .calendar-event {
+            font-size: 0.8rem;
+            color: #374151;
+            margin-top: 4px;
+            line-height: 1.2;
+        }
+        .split-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .pill {
+            background: #eef2f7;
+            color: #334155;
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 0.8rem;
+        }
+        .transaction-ribbon {
+            background: var(--white);
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            transition: box-shadow 0.2s;
+        }
+        .transaction-ribbon:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .ribbon-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #f3f4f6;
+        }
+        .ribbon-username {
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--primary-green);
+        }
+        .ribbon-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            font-size: 0.9rem;
+        }
+        .ribbon-detail-item {
+            display: flex;
+            flex-direction: column;
+        }
+        .ribbon-detail-label {
+            color: var(--muted);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        .ribbon-detail-value {
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+        .modal-content {
+            background: var(--white);
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--muted);
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-close:hover {
+            color: var(--text-dark);
+        }
     </style>
 </head>
 <body>
@@ -193,7 +487,7 @@
             <h2>La Salle Academy</h2>
             <p style="color: #666; margin-bottom: 20px;">Financial Transparency System</p>
             <form id="login-form">
-                <input type="text" id="username" placeholder="Username" required>
+                <input type="text" id="employee-id" placeholder="Employee ID" required>
                 <input type="password" id="password" placeholder="Password" required>
                 <button type="submit" class="btn" style="width: 100%;">SIGN IN</button>
             </form>
@@ -205,27 +499,56 @@
 
     <!-- Application Layout -->
     <div id="app-layout" class="hidden">
-        <aside id="sidebar">
-            <h2 style="text-align: center; margin-bottom: 5px;">La Salle Academy</h2>
-            <p style="text-align: center; font-size: 0.8rem; color: #666; margin-bottom: 20px;">Secure Financial Portal</p>
-
-            <div style="text-align: center; padding-bottom: 20px; border-bottom: 1px solid #eee; margin-bottom: 10px;">
-                <div id="user-display" style="font-weight: bold; color: var(--primary-green);">User</div>
-                <div id="role-display" style="font-size: 0.8rem; color: #666; text-transform: uppercase;">Role</div>
+        <!-- Header -->
+        <header id="site-header">
+            <div class="header-left">
+                <h1 class="header-title">La Salle Academy</h1>
+                <p class="header-subtitle">Financial System</p>
             </div>
-
-            <nav id="nav-menu">
-                <!-- Javascript will inject nav items here -->
-            </nav>
-
-            <div style="margin-top: auto;">
-                <div class="nav-item" onclick="logout()" style="color: var(--danger);">Logout</div>
+            <div class="header-right">
+                <div class="header-user-info">
+                    <div class="header-username" id="header-username">User</div>
+                    <div class="header-role" id="header-role">Role</div>
+                </div>
+                <button class="header-logout" onclick="logout()">Logout</button>
             </div>
-        </aside>
+        </header>
 
-        <main id="content">
-            <!-- Dynamic Content -->
-        </main>
+        <!-- Main Content Area -->
+        <div id="app-main">
+            <aside id="sidebar">
+                <nav id="nav-menu">
+                    <!-- Javascript will inject nav items here -->
+                </nav>
+            </aside>
+
+            <main id="content">
+                <!-- Dynamic Content -->
+            </main>
+        </div>
+
+        <!-- Footer -->
+        <!--
+        <footer id="site-footer">
+            <div class="footer-section">
+                <h4>Contact Details:</h4>
+                <p>La Salle Academy,</p>
+                <p>Iligan City, Philippines</p>
+                <p>Email: <a href="mailto:finance@lasalle.edu.ph">finance@lasalle.edu.ph</a></p>
+            </div>
+            <div class="footer-section">
+                <h4>Quick Links</h4>
+                <p><a href="#">Privacy Policy</a></p>
+                <p><a href="#">Data Privacy Act 2012</a></p>
+            </div>
+            <div class="footer-section">
+                <h4>Research Team</h4>
+                <p>Senior Highschool Researchers:</p>
+                <p>Balindona • Bulacan • Dipatuan</p>
+                <p>Macadato • Mangondato • Mangandang</p>
+            </div>
+        </footer>
+        -->
     </div>
 
     <script>
@@ -235,8 +558,14 @@
         // STATE
         let currentUser = null;
         const ROLES = {
-            "admin": "Admin", "staff": "Finance Staff", "officer": "Finance Officer",
-            "auditor": "Auditor", "it": "System Admin", "student": "Student", "guest": "Guest"
+            "admin": "System Administrator",
+            "payables": "Payables Associate",
+            "vp_finance": "VP Finance",
+            "president": "President",
+            "procurement": "Procurement",
+            "dept_head": "Department Head",
+            "bookkeeper": "Bookkeeper",
+            "student": "Student"
         };
         const CATEGORIES = {
             "Collection": ["Tuition Fee", "Miscellaneous Fee", "Organization Fund", "Donation"],
@@ -246,7 +575,7 @@
         // --- AUTH LOGIC ---
         document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const u = document.getElementById('username').value;
+            const u = document.getElementById('employee-id').value;
             const p = document.getElementById('password').value;
 
             try {
@@ -258,17 +587,17 @@
                 const data = await res.json();
 
                 if (data.success) {
-                    initSession(u, data.role, data.name);
+                    initSession(u, data.role, data.name || u, data.first_name, data.last_name);
                 } else {
                     showToast(data.message || "Login Failed", true);
                 }
             } catch (err) { showToast("Connection Error", true); }
         });
 
-        function guestLogin() { initSession("guest", "guest", "Guest Visitor"); }
+        function guestLogin() { initSession("guest", "guest", "Guest Visitor", null, null); }
 
-        function initSession(user, role, name) {
-            currentUser = { username: user, role: role, name: name };
+        function initSession(user, role, name, first_name, last_name) {
+            currentUser = { username: user, role: role, name: name, first_name: first_name, last_name: last_name };
             localStorage.setItem('user', JSON.stringify(currentUser));
             updateUIState();
         }
@@ -283,13 +612,13 @@
             if (currentUser) {
                 document.getElementById('login-view').classList.add('hidden');
                 document.getElementById('app-layout').classList.remove('hidden');
-                document.getElementById('user-display').innerText = currentUser.name;
-                document.getElementById('role-display').innerText = ROLES[currentUser.role];
+                document.getElementById('header-username').innerText = currentUser.name;
+                document.getElementById('header-role').innerText = ROLES[currentUser.role] || currentUser.role;
 
                 renderNav();
 
                 // Redirect based on role
-                if (currentUser.role === 'student') navigate('ledger');
+                if (currentUser.role === 'student') navigate('student-ledger');
                 else navigate('dashboard');
             }
         }
@@ -304,12 +633,18 @@
 
             if (r !== 'guest' && r !== 'student') items.push({id: 'dashboard', label: 'Dashboard'});
             if (r === 'guest') items.push({id: 'dashboard', label: 'Transparency Board'});
-            if (r === 'student') items.push({id: 'ledger', label: 'My Ledger'});
-            if (['staff', 'admin', 'officer'].includes(r)) items.push({id: 'transaction', label: 'New Transaction'});
+            if (r === 'student') items.push({id: 'student-ledger', label: 'My Financial Profile'});
+            const ledgerRoles = ['staff','admin','officer','auditor','guest','payables','vp_finance','president','procurement','dept_head','bookkeeper'];
+            const auditRoles = ['admin','officer','auditor','vp_finance','president'];
+            const txnRoles = ['staff','admin','officer','payables','bookkeeper','procurement'];
+
+            if (ledgerRoles.includes(r)) items.push({id: 'digital-ledger', label: 'Digital Ledger'});
+            if (auditRoles.includes(r)) items.push({id: 'audit-trail', label: 'Audit Trail'});
+            if (txnRoles.includes(r)) items.push({id: 'transaction', label: 'Transactions'});
             if (r === 'admin') items.push({id: 'approvals', label: 'Pending Approvals'});
-            if (['admin', 'officer', 'auditor'].includes(r)) items.push({id: 'audit', label: 'Audit Trail'});
             items.push({id: 'verification', label: 'Verification'});
-            if (r === 'it') items.push({id: 'users', label: 'User Management'});
+            if (r === 'admin') items.push({id: 'users', label: 'User Management'});
+            items.push({id: 'settings', label: 'Settings'});
 
             items.forEach(item => {
                 const div = document.createElement('div');
@@ -333,10 +668,12 @@
                 case 'dashboard': renderDashboard(); break;
                 case 'transaction': renderTransactionPage(); break;
                 case 'approvals': renderApprovalsPage(); break;
-                case 'audit': renderAuditPage(); break;
+                case 'audit-trail': renderAuditTrailPage(); break;
+                case 'digital-ledger': renderDigitalLedgerPage(); break;
                 case 'verification': renderVerificationPage(); break;
-                case 'ledger': renderStudentLedger(); break;
+                case 'student-ledger': renderStudentLedger(); break;
                 case 'users': renderUserManagement(); break;
+                case 'settings': renderSettingsPage(); break;
             }
         }
 
@@ -387,44 +724,151 @@
             `;
 
             // Render Charts
+            const collectionLabels = Object.keys(stats.collections_by_category || {});
+            const collectionData = collectionLabels.map(k => stats.collections_by_category[k]);
+            const pieLabels = collectionLabels.length ? collectionLabels : ['Tuition', 'Misc', 'Org'];
+            const pieData = collectionLabels.length
+                ? collectionData
+                : [stats.total_tuition, stats.total_misc, stats.total_org];
+
             new Chart(document.getElementById('pieChart'), {
                 type: 'doughnut',
                 data: {
-                    labels: ['Tuition', 'Misc', 'Org', 'Expenses'],
+                    labels: pieLabels,
                     datasets: [{
-                        data: [stats.total_tuition, stats.total_misc, stats.total_org, stats.total_expenses],
-                        backgroundColor: ['#006241', '#FFC72C', '#4CAF50', '#B91C1C']
+                        data: pieData,
+                        backgroundColor: ['#006241', '#FFC72C', '#4CAF50', '#B91C1C', '#6EE7B7', '#93C5FD']
                     }]
                 }
             });
 
-            // Mock Strand Data for Visualization
+            const disbLabels = Object.keys(stats.disbursements_by_category || {});
+            const allLabels = Array.from(new Set([...collectionLabels, ...disbLabels]));
+            const barCollections = allLabels.map(l => stats.collections_by_category[l] || 0);
+            const barDisbursements = allLabels.map(l => stats.disbursements_by_category[l] || 0);
+
             new Chart(document.getElementById('mainChart'), {
                 type: 'bar',
                 data: {
-                    labels: ['ABM', 'STEM', 'HUMSS', 'General'],
-                    datasets: [{
+                    labels: allLabels.length ? allLabels : ['Collections','Disbursements'],
+                    datasets: [
+                        {
                         label: 'Collections',
-                        data: [15000, 22000, 18000, 9000],
+                            data: allLabels.length ? barCollections : [stats.total_tuition + stats.total_misc + stats.total_org, 0],
                         backgroundColor: '#006241'
-                    }]
+                        },
+                        {
+                            label: 'Disbursements',
+                            data: allLabels.length ? barDisbursements : [0, stats.total_expenses],
+                            backgroundColor: '#B91C1C'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: { x: { stacked: false }, y: { beginAtZero: true } }
                 }
             });
         }
 
-        // --- NEW TRANSACTION ---
+        // --- TRANSACTIONS PAGE ---
         async function renderTransactionPage() {
             const content = document.getElementById('content');
             content.innerHTML = `
-                <h1>Record Transaction</h1>
+                <div class="split-header">
+                    <h1>Transactions</h1>
+                    <button class="btn" onclick="openTransactionModal()">Add Transaction</button>
+                </div>
                 <hr style="margin: 15px 0; border: 0; border-top: 1px solid #ddd;">
+                <div id="transactions-list">Loading...</div>
+            `;
 
-                <div class="txn-layout">
-                    <div style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                        <h3>New Entry</h3>
-                        <form id="txn-form" style="margin-top: 15px;">
+            await loadTransactions();
+        }
+
+        async function loadTransactions() {
+            const listDiv = document.getElementById('transactions-list');
+            try {
+                const res = await fetch(`${API_URL}/transactions?limit=200`);
+                const txns = await res.json();
+                
+                // Store transactions in cache for edit/delete functions
+                window.__TRANSACTIONS_CACHE = txns;
+                
+                if (!txns || txns.length === 0) {
+                    listDiv.innerHTML = '<p style="text-align: center; color: var(--muted); padding: 40px;">No transactions found. Click "Add Transaction" to create one.</p>';
+                    return;
+                }
+
+                const isAdmin = currentUser && currentUser.role === 'admin';
+
+                listDiv.innerHTML = txns.map(t => {
+                    const receiptInfo = t.txn_type === 'Collection' 
+                        ? `<div class="ribbon-detail-item">
+                            <div class="ribbon-detail-label">Receipt Number</div>
+                            <div class="ribbon-detail-value">${t.proof_reference ? `<a href="${API_URL}/${t.proof_reference}" target="_blank">View</a>` : '—'}</div>
+                           </div>`
+                        : `<div class="ribbon-detail-item">
+                            <div class="ribbon-detail-label">Category</div>
+                            <div class="ribbon-detail-value">${t.category}</div>
+                           </div>`;
+
+                    return `
+                        <div class="transaction-ribbon">
+                            <div class="ribbon-header">
+                                <div class="ribbon-username">${t.recorded_by}</div>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <span class="status-badge ${t.status === 'Approved' ? 'status-approved' : t.status === 'Rejected' ? 'status-rejected' : 'status-pending'}">${t.status}</span>
+                                    ${isAdmin ? `
+                                        <button class="btn btn-outline" style="padding: 4px 12px; font-size: 0.85rem;" onclick="editTransactionRibbon(${t.id})">Edit</button>
+                                        <button class="btn btn-danger" style="padding: 4px 12px; font-size: 0.85rem;" onclick="voidTransactionRibbon(${t.id})">Void</button>
+                                    ` : ''}
+                                </div>
+                            </div>
+                            <div class="ribbon-details">
+                                <div class="ribbon-detail-item">
+                                    <div class="ribbon-detail-label">Transaction ID</div>
+                                    <div class="ribbon-detail-value">TX-${String(t.id).padStart(5,'0')}</div>
+                                </div>
+                                <div class="ribbon-detail-item">
+                                    <div class="ribbon-detail-label">Strand</div>
+                                    <div class="ribbon-detail-value">${t.strand}</div>
+                                </div>
+                                <div class="ribbon-detail-item">
+                                    <div class="ribbon-detail-label">Amount</div>
+                                    <div class="ribbon-detail-value">₱${t.amount.toLocaleString()}</div>
+                                </div>
+                                <div class="ribbon-detail-item">
+                                    <div class="ribbon-detail-label">Date</div>
+                                    <div class="ribbon-detail-value">${formatDate(t.created_at)}</div>
+                                </div>
+                                ${receiptInfo}
+                                <div class="ribbon-detail-item">
+                                    <div class="ribbon-detail-label">Hash</div>
+                                    <div class="ribbon-detail-value" style="font-family: monospace; font-size: 0.8rem; color: var(--muted);">${t.tx_hash?.substring(0,16) || '—'}...</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch(e) {
+                listDiv.innerHTML = '<p style="color: var(--danger);">Failed to load transactions.</p>';
+            }
+        }
+
+        function openTransactionModal() {
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.id = 'transaction-modal';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Add New Transaction</h2>
+                        <button class="modal-close" onclick="closeTransactionModal()">&times;</button>
+                    </div>
+                    <form id="txn-form">
                             <label>Type</label>
-                            <select id="txn-type" onchange="updateCategories()">
+                            <select id="txn-type" onchange="updateCategories(); toggleRefundFields();">
                                 <option value="Collection">Collection</option>
                                 <option value="Disbursement">Disbursement</option>
                             </select>
@@ -439,42 +883,83 @@
                                 </div>
                                 <div>
                                     <label>Category</label>
-                                    <select id="category"></select>
+                                    <select id="category" onchange="toggleRefundFields()"></select>
                                 </div>
                             </div>
 
                             <label>Amount (PHP)</label>
                             <input type="number" id="amount" step="0.01" min="0" required>
 
-                            <label>Student ID (Optional)</label>
-                            <input type="text" id="sid">
+                            <div id="refund-fields" style="display: none;">
+                                <label>Student ID <span class="pill">Required</span></label>
+                                <input type="text" id="sid" placeholder="e.g. 23-01456">
 
-                            <label>Description</label>
-                            <textarea id="desc" rows="3"></textarea>
+                                <label>Receipt / Proof <span class="pill">Required</span></label>
+                                <input type="file" id="file-upload" accept="image/*,.pdf">
+                            </div>
 
-                            <label>Receipt / Proof</label>
-                            <input type="file" id="file-upload" accept="image/*,.pdf">
+                        <label>Description</label>
+                        <textarea id="desc" rows="3" placeholder="Add context"></textarea>
 
-                            <button type="submit" class="btn" style="width: 100%; margin-top: 15px;">Submit Record</button>
+                        <div style="display: flex; gap: 10px; margin-top: 20px;">
+                            <button type="submit" class="btn" style="flex: 1;">Submit</button>
+                            <button type="button" class="btn btn-outline" onclick="closeTransactionModal()" style="flex: 1;">Cancel</button>
+                        </div>
                         </form>
-                    </div>
-
-                    <div>
-                        <h3>Recent Records</h3>
-                        <div id="recent-list" style="margin-top: 15px;">Loading...</div>
-                    </div>
                 </div>
             `;
-
+            document.body.appendChild(modal);
             updateCategories();
+            toggleRefundFields();
             document.getElementById('txn-form').onsubmit = handleTransactionSubmit;
-            loadRecentList();
+            
+            // Close on overlay click
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) closeTransactionModal();
+            });
+        }
+
+        function toggleRefundFields() {
+            const txnType = document.getElementById('txn-type')?.value;
+            const category = document.getElementById('category')?.value;
+            const refundFields = document.getElementById('refund-fields');
+            const sidInput = document.getElementById('sid');
+            const fileInput = document.getElementById('file-upload');
+            
+            if (!refundFields) return;
+            
+            // Show fields for Collections (always) or Disbursements with Refund category
+            const shouldShow = txnType === 'Collection' || (txnType === 'Disbursement' && category === 'Refund');
+            
+            if (shouldShow) {
+                refundFields.style.display = 'block';
+                if (sidInput) sidInput.required = true;
+                if (fileInput) fileInput.required = true;
+            } else {
+                refundFields.style.display = 'none';
+                if (sidInput) {
+                    sidInput.required = false;
+                    sidInput.value = '';
+                }
+                if (fileInput) {
+                    fileInput.required = false;
+                    fileInput.value = '';
+                }
+            }
+        }
+
+        function closeTransactionModal() {
+            const modal = document.getElementById('transaction-modal');
+            if (modal) {
+                modal.remove();
+            }
         }
 
         function updateCategories() {
             const type = document.getElementById('txn-type').value;
             const catSelect = document.getElementById('category');
             catSelect.innerHTML = CATEGORIES[type].map(c => `<option value="${c}">${c}</option>`).join('');
+            toggleRefundFields();
         }
 
         async function handleTransactionSubmit(e) {
@@ -483,10 +968,31 @@
             btn.disabled = true; btn.innerText = "Uploading & Saving...";
 
             try {
-                // File Upload
+                const txnType = document.getElementById('txn-type').value;
+                const category = document.getElementById('category').value;
+                const isRefund = txnType === 'Disbursement' && category === 'Refund';
+                const requiresFields = txnType === 'Collection' || isRefund;
+                
+                // Require Student ID and Receipt for Collections or Refund Disbursements
+                if (requiresFields) {
+                    const sidValue = document.getElementById('sid').value.trim();
+                    if (!sidValue) {
+                        const msg = txnType === 'Collection' ? "Student ID is required" : "Student ID is required for refunds";
+                        showToast(msg, true);
+                        btn.disabled = false; btn.innerText = "Submit"; return;
+                    }
+                    const fileInput = document.getElementById('file-upload');
+                    if (!fileInput || fileInput.files.length === 0) {
+                        const msg = txnType === 'Collection' ? "Receipt / proof is required" : "Receipt / proof is required for refunds";
+                        showToast(msg, true);
+                        btn.disabled = false; btn.innerText = "Submit"; return;
+                    }
+                }
+                
+                // File Upload (only if refund or if file is provided)
                 let proofRef = null;
                 const fileInput = document.getElementById('file-upload');
-                if (fileInput.files.length > 0) {
+                if (fileInput && fileInput.files.length > 0) {
                     const formData = new FormData();
                     formData.append('file', fileInput.files[0]);
                     const upRes = await fetch(`${API_URL}/files/upload`, {method: 'POST', body: formData});
@@ -494,15 +1000,17 @@
                 }
 
                 // Create Transaction
+                const needsFields = txnType === 'Collection' || isRefund;
                 const payload = {
                     recorded_by: currentUser.username,
-                    txn_type: document.getElementById('txn-type').value,
+                    txn_type: txnType,
                     strand: document.getElementById('strand').value,
-                    category: document.getElementById('category').value,
+                    category: category,
                     description: document.getElementById('desc').value,
                     amount: parseFloat(document.getElementById('amount').value),
-                    student_id: document.getElementById('sid').value,
-                    proof_reference: proofRef
+                    student_id: needsFields ? document.getElementById('sid').value : null,
+                    proof_reference: proofRef,
+                    force_pending: document.getElementById('desc').value.trim().length > 0
                 };
 
                 const res = await fetch(`${API_URL}/transactions`, {
@@ -513,41 +1021,22 @@
 
                 if (res.ok) {
                     const data = await res.json();
-                    showToast(data.status === 'Approved' ? "Saved & Verified!" : "Submitted for Approval");
-                    document.getElementById('txn-form').reset();
-                    updateCategories();
-                    loadRecentList();
-                } else { showToast("Submission failed", true); }
+                    const needsReview = payload.force_pending || data.status === 'Pending';
+                    showToast(needsReview ? "Routed for manual approval" : "Saved & Verified!");
+                    closeTransactionModal();
+                    await loadTransactions();
+                } else { 
+                    const err = await res.json().catch(() => ({detail: "Submission failed"}));
+                    showToast(err.detail || "Submission failed", true); 
+                }
             } catch(err) { showToast("Error occurred", true); }
-            finally { btn.disabled = false; btn.innerText = "Submit Record"; }
-        }
-
-        async function loadRecentList() {
-            try {
-                const res = await fetch(`${API_URL}/transactions?limit=8`);
-                const data = await res.json();
-                const html = `
-                    <table>
-                        <thead><tr><th>Cat</th><th>Amt</th><th>Status</th></tr></thead>
-                        <tbody>
-                            ${data.map(t => `
-                                <tr>
-                                    <td>${t.category}</td>
-                                    <td>₱${t.amount.toLocaleString()}</td>
-                                    <td><span style="color:${t.status==='Approved'?'var(--primary-green)':'orange'}">${t.status}</span></td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                `;
-                document.getElementById('recent-list').innerHTML = html;
-            } catch(e) {}
+            finally { btn.disabled = false; btn.innerText = "Submit"; }
         }
 
         // --- APPROVALS ---
         async function renderApprovalsPage() {
             const content = document.getElementById('content');
-            content.innerHTML = `<h1>Pending Approvals</h1><hr><div id="approval-list"></div>`;
+            content.innerHTML = `<h1>Pending Approvals</h1><p style="color: var(--muted);">Admin-only: modify or delete/Reject records</p><hr><div id="approval-list"></div>`;
 
             try {
                 const res = await fetch(`${API_URL}/transactions?status=Pending`);
@@ -566,7 +1055,7 @@
                         </div>
                         <p style="color: #666; margin-bottom: 5px;">${t.description}</p>
                         <div style="font-size: 0.9rem; margin-bottom: 15px;">
-                            By: <b>${t.recorded_by}</b> | Date: ${t.created_at}
+                            By: <b>${t.recorded_by}</b> | Date: ${formatDate(t.created_at)}
                             ${t.proof_reference ? ` | <a href="${API_URL}/${t.proof_reference}" target="_blank" style="color: var(--primary-green);">View Proof</a>` : ''}
                         </div>
                         <div class="flex" style="gap: 10px;">
@@ -589,29 +1078,480 @@
             } catch(e) { showToast("Failed", true); }
         }
 
-        // --- AUDIT TRAIL ---
-        async function renderAuditPage() {
+        // --- DIGITAL LEDGER ---
+        async function renderDigitalLedgerPage() {
             const content = document.getElementById('content');
-            content.innerHTML = `<h1>Audit Trail</h1><p>Immutability guaranteed by Immudb</p><hr><div id="audit-table">Loading...</div>`;
+            content.innerHTML = `
+                <div class="split-header">
+                    <div>
+                        <h1>Digital Ledger</h1>
+                        <p style="color: var(--muted);">Chronological, permanent record of collections and disbursements</p>
+                    </div>
+                    <div class="pill">Transaction ID and Hash are now searchable</div>
+                </div>
+                <div class="module-card">
+                    <div class="grid" style="grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 12px;">
+                        <div>
+                            <label>Search by Transaction ID</label>
+                            <input type="text" id="ledger-search-id" placeholder="e.g. TX-2026-00125">
+                        </div>
+                        <div>
+                            <label>Search by Hash</label>
+                            <input type="text" id="ledger-search-hash" placeholder="Enter any part of the hash">
+                        </div>
+                        <div>
+                            <label>From Date</label>
+                            <input type="date" id="ledger-start-date">
+                        </div>
+                        <div>
+                            <label>To Date</label>
+                            <input type="date" id="ledger-end-date">
+                        </div>
+                        <div style="display:flex; align-items:flex-end; gap:10px;">
+                            <button class="btn" onclick="filterLedger()">Apply</button>
+                            <button class="btn btn-outline" onclick="renderDigitalLedgerPage()">Reset</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="module-card">
+                    <div class="split-header">
+                    <h3>Calendar View</h3>
+                        <div class="flex" style="gap:10px; align-items:center; flex-wrap:wrap; justify-content:space-between;">
+                            <button class="btn btn-outline" onclick="prevLedgerMonth()">Prev</button>
+                            <div style="display:flex; gap:8px; align-items:center;">
+                                <input type="month" id="ledger-month" onchange="onLedgerMonthChange()" style="max-width: 160px;">
+                                <button class="btn btn-outline" onclick="nextLedgerMonth()">Next</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="ledger-calendar" style="margin-top: 10px;"></div>
+                    <div id="ledger-day-summary" style="margin-top: 8px; color: var(--muted);"></div>
+                </div>
+                <div class="module-card">
+                    <div class="split-header">
+                        <h3>Ledger Entries</h3>
+                        <span class="pill">Shows: Amount · Date & Time · Account · Type · Status · Receipt</span>
+                        <button class="btn btn-outline" onclick="resetLedgerFilters()">Reset Search</button>
+                    </div>
+                    <div id="ledger-table">Loading...</div>
+                </div>
+            `;
+
+            let txns = [];
             try {
-                const res = await fetch(`${API_URL}/transactions`);
+                const res = await fetch(`${API_URL}/transactions?limit=200`);
+                txns = await res.json();
+            } catch(e) { showToast("Failed to load ledger", true); }
+
+            window.__LEDGER_CACHE = txns;
+            window.__LEDGER_DAY_FILTER = null;
+            window.__LEDGER_MONTH = new Date().toISOString().slice(0,7);
+            const monthInput = document.getElementById('ledger-month');
+            if (monthInput) monthInput.value = window.__LEDGER_MONTH;
+            drawLedger(txns);
+            drawLedgerCalendar(txns);
+        }
+
+        function filterLedger() {
+            if (!window.__LEDGER_CACHE) return;
+            const idQ = document.getElementById('ledger-search-id').value.trim().toLowerCase();
+            const hashQ = document.getElementById('ledger-search-hash').value.trim().toLowerCase();
+            const monthQ = document.getElementById('ledger-month').value;
+            const dayQ = window.__LEDGER_DAY_FILTER;
+            const startDate = document.getElementById('ledger-start-date').value;
+            const endDate = document.getElementById('ledger-end-date').value;
+
+            const filtered = window.__LEDGER_CACHE.filter(t => {
+                const matchId = idQ ? (`TX-${String(t.id).padStart(5,'0')}`.toLowerCase().includes(idQ) || String(t.id).toLowerCase().includes(idQ)) : true;
+                const matchHash = hashQ ? (t.tx_hash && t.tx_hash.toLowerCase().includes(hashQ)) : true;
+                const matchMonth = monthQ ? t.created_at.startsWith(monthQ) : true;
+                const matchDay = dayQ ? t.created_at.startsWith(dayQ) : true;
+                const txnDate = (t.created_at || "").slice(0,10);
+                const matchStart = startDate ? txnDate >= startDate : true;
+                const matchEnd = endDate ? txnDate <= endDate : true;
+                return matchId && matchHash && matchMonth && matchDay && matchStart && matchEnd;
+            });
+            drawLedger(filtered);
+            // Redraw calendar to show date range highlighting
+            if (window.__LEDGER_CACHE) {
+                drawLedgerCalendar(window.__LEDGER_CACHE);
+            }
+        }
+
+        function drawLedger(list) {
+            const tableDiv = document.getElementById('ledger-table');
+            if (!list || list.length === 0) { tableDiv.innerHTML = "<p>No records found.</p>"; return; }
+            const isAdmin = currentUser && currentUser.role === 'admin';
+            tableDiv.innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date & Time</th><th>Transaction ID</th><th>Type</th><th>Account</th><th>Student ID</th><th>Amount</th><th>Status</th><th>Receipt</th><th>Hash</th>${isAdmin ? '<th>Actions</th>' : ''}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${list.map(t => `
+                            <tr>
+                                <td>${formatDate(t.created_at)}</td>
+                                <td>TX-${String(t.id).padStart(5,'0')}</td>
+                                <td>${t.txn_type}</td>
+                                <td>${t.category}</td>
+                                <td>${t.student_id || '—'}</td>
+                                <td>₱${t.amount.toLocaleString()}</td>
+                                <td><span class="status-badge ${t.status === 'Approved' ? 'status-approved' : t.status === 'Rejected' ? 'status-rejected' : 'status-pending'}">${t.status}</span></td>
+                                <td>${t.proof_reference ? `<a href="${API_URL}/${t.proof_reference}" target="_blank">View</a>` : '—'}</td>
+                                <td style="font-family: monospace; color: #374151;">${t.tx_hash?.substring(0,16) || ''}...</td>
+                                ${isAdmin ? `<td>
+                                    <button class="btn btn-outline" style="margin-right:6px;" onclick="openEditTxn(${t.id})">Edit</button>
+                                    <button class="btn btn-danger" onclick="deleteTxn(${t.id})">Void</button>
+                                </td>` : ''}
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            drawLedgerCalendar(list);
+        }
+
+        async function openEditTxn(id) {
+            if (!currentUser || currentUser.role !== 'admin') { showToast("Admin only", true); return; }
+            const tx = (window.__LEDGER_CACHE || []).find(t => t.id === id);
+            if (!tx) { showToast("Record not found", true); return; }
+
+            const newDesc = prompt("Update description", tx.description || "");
+            if (newDesc === null) return;
+            const newAmountStr = prompt("Update amount (PHP)", tx.amount);
+            if (newAmountStr === null) return;
+            const newCategory = prompt("Update category", tx.category || "");
+            if (newCategory === null) return;
+
+            const payload = {
+                admin_username: currentUser.username,
+            };
+            if (newDesc !== tx.description) payload.description = newDesc;
+            const parsedAmt = parseFloat(newAmountStr);
+            if (!Number.isNaN(parsedAmt) && parsedAmt !== tx.amount) payload.amount = parsedAmt;
+            if (newCategory && newCategory !== tx.category) payload.category = newCategory;
+
+            if (Object.keys(payload).length === 1) { showToast("No changes made"); return; }
+
+            try {
+                const res = await fetch(`${API_URL}/transactions/${id}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    showToast("Ledger updated");
+                    renderDigitalLedgerPage();
+                } else {
+                    const msg = await res.json().catch(()=>({detail:"Failed"}));
+                    showToast(msg.detail || "Update failed", true);
+                }
+            } catch(e) { showToast("Update error", true); }
+        }
+
+        async function deleteTxn(id) {
+            if (!currentUser || currentUser.role !== 'admin') { showToast("Admin only", true); return; }
+            const confirmDelete = confirm("Void this ledger entry? This preserves the record but marks it invalid.");
+            if (!confirmDelete) return;
+            try {
+                const res = await fetch(`${API_URL}/transactions/${id}/void`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({admin_username: currentUser.username})
+                });
+                if (res.ok) {
+                    showToast("Ledger voided");
+                    renderDigitalLedgerPage();
+                } else {
+                    const msg = await res.json().catch(()=>({detail:"Failed"}));
+                    showToast(msg.detail || "Void failed", true);
+                }
+            } catch(e) { showToast("Void error", true); }
+        }
+
+        async function editTransactionRibbon(id) {
+            if (!currentUser || currentUser.role !== 'admin') { showToast("Admin only", true); return; }
+            const tx = (window.__TRANSACTIONS_CACHE || []).find(t => t.id === id);
+            if (!tx) { showToast("Transaction not found", true); return; }
+
+            const newDesc = prompt("Update description", tx.description || "");
+            if (newDesc === null) return;
+            const newAmountStr = prompt("Update amount (PHP)", tx.amount);
+            if (newAmountStr === null) return;
+            const newCategory = prompt("Update category", tx.category || "");
+            if (newCategory === null) return;
+
+            const payload = {
+                admin_username: currentUser.username,
+            };
+            if (newDesc !== tx.description) payload.description = newDesc;
+            const parsedAmt = parseFloat(newAmountStr);
+            if (!Number.isNaN(parsedAmt) && parsedAmt !== tx.amount) payload.amount = parsedAmt;
+            if (newCategory && newCategory !== tx.category) payload.category = newCategory;
+
+            if (Object.keys(payload).length === 1) { showToast("No changes made"); return; }
+
+            try {
+                const res = await fetch(`${API_URL}/transactions/${id}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    showToast("Transaction updated");
+                    renderTransactionPage();
+                } else {
+                    const msg = await res.json().catch(()=>({detail:"Failed"}));
+                    showToast(msg.detail || "Update failed", true);
+                }
+            } catch(e) { showToast("Update error", true); }
+        }
+
+        async function voidTransactionRibbon(id) {
+            if (!currentUser || currentUser.role !== 'admin') { showToast("Admin only", true); return; }
+            const confirmDelete = confirm("Void this transaction? This preserves the record but marks it invalid.");
+            if (!confirmDelete) return;
+            try {
+                const res = await fetch(`${API_URL}/transactions/${id}/void`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({admin_username: currentUser.username})
+                });
+                if (res.ok) {
+                    showToast("Transaction voided");
+                    renderTransactionPage();
+                } else {
+                    const msg = await res.json().catch(()=>({detail:"Failed"}));
+                    showToast(msg.detail || "Void failed", true);
+                }
+            } catch(e) { showToast("Void error", true); }
+        }
+
+        function getLedgerMonth(list) {
+            const dayFilter = window.__LEDGER_DAY_FILTER;
+            if (dayFilter) return dayFilter.slice(0,7);
+            const monthInput = document.getElementById('ledger-month')?.value;
+            if (monthInput) return monthInput;
+            if (window.__LEDGER_MONTH) return window.__LEDGER_MONTH;
+            if (list && list.length > 0) {
+                const m = (list[0].created_at || '').slice(0,7);
+                if (m) return m;
+            }
+            return new Date().toISOString().slice(0,7);
+        }
+
+        function drawLedgerCalendar(list) {
+            const calendar = document.getElementById('ledger-calendar');
+            if (!calendar) return;
+
+            const month = getLedgerMonth(list);
+            const [year, monthNum] = month.split('-').map(Number);
+            const firstDay = new Date(year, monthNum - 1, 1);
+            const startWeekday = firstDay.getDay(); // 0 = Sunday
+            const daysInMonth = new Date(year, monthNum, 0).getDate();
+
+            // Get date range from search filters
+            const startDate = document.getElementById('ledger-start-date')?.value || '';
+            const endDate = document.getElementById('ledger-end-date')?.value || '';
+
+            const byDate = {};
+            list.forEach(t => {
+                const dateKey = (t.created_at || '').slice(0,10);
+                if (dateKey.startsWith(month)) {
+                    byDate[dateKey] = byDate[dateKey] || [];
+                    byDate[dateKey].push(t);
+                }
+            });
+
+            const cells = [];
+            for (let i = 0; i < startWeekday; i++) {
+                cells.push('<div class="calendar-cell" style="background:#f9fafb;"></div>');
+            }
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${month}-${String(day).padStart(2,'0')}`;
+                const txns = byDate[dateStr] || [];
+                const isSelected = window.__LEDGER_DAY_FILTER === dateStr;
+                
+                // Check if date is in search range
+                const isInRange = startDate && endDate && dateStr >= startDate && dateStr <= endDate;
+                const rangeClass = isInRange ? 'date-in-range' : '';
+                
+                const markers = txns.slice(0,3).map(t => `<div class="calendar-event">${t.txn_type}: ₱${t.amount.toLocaleString()}</div>`).join('');
+                const more = txns.length > 3 ? `<div class="calendar-event" style="color: var(--primary-green);">+${txns.length - 3} more</div>` : '';
+                cells.push(`
+                    <div class="calendar-cell ${isSelected ? 'selected-day' : ''} ${rangeClass}" onclick="selectLedgerDay('${dateStr}')">
+                        <div class="pill" style="display:inline-block; margin-bottom:6px;">${day}</div>
+                        ${txns.length ? markers + more : '<div class="calendar-event" style="color: var(--muted);">No entries</div>'}
+                </div>
+                `);
+            }
+
+            calendar.innerHTML = `
+                <div style="display:grid; grid-template-columns: repeat(7, minmax(110px, 1fr)); gap: 10px;">
+                    ${cells.join('')}
+                </div>
+            `;
+
+            const summary = document.getElementById('ledger-day-summary');
+            if (summary) {
+                summary.innerText = window.__LEDGER_DAY_FILTER
+                    ? `Showing transactions for ${window.__LEDGER_DAY_FILTER}`
+                    : `Showing ${month} · click a day to drill in`;
+            }
+        }
+
+        function selectLedgerDay(dateStr) {
+            window.__LEDGER_DAY_FILTER = dateStr;
+            filterLedger();
+        }
+
+        function onLedgerMonthChange() {
+            window.__LEDGER_DAY_FILTER = null;
+            const val = document.getElementById('ledger-month')?.value;
+            if (val) {
+                window.__LEDGER_MONTH = val;
+                if (window.__LEDGER_CACHE) {
+                    drawLedgerCalendar(window.__LEDGER_CACHE);
+                }
+                filterLedger();
+            }
+        }
+
+        function adjustLedgerMonth(delta) {
+            const input = document.getElementById('ledger-month');
+            if (!input) return;
+            
+            // Get current month from input or stored value
+            let currentMonth = input.value || window.__LEDGER_MONTH || new Date().toISOString().slice(0,7);
+            
+            // Parse the month string (YYYY-MM)
+            const [year, month] = currentMonth.split('-').map(Number);
+            const current = new Date(year, month - 1, 1); // month is 0-indexed in Date
+            
+            // Adjust month
+            current.setMonth(current.getMonth() + delta);
+            
+            // Format back to YYYY-MM
+            const newYear = current.getFullYear();
+            const newMonth = String(current.getMonth() + 1).padStart(2, '0');
+            const newVal = `${newYear}-${newMonth}`;
+            
+            // Update without triggering onchange
+            window.__LEDGER_MONTH = newVal;
+            input.value = newVal;
+            window.__LEDGER_DAY_FILTER = null;
+            
+            // Redraw calendar and filter
+            if (window.__LEDGER_CACHE) {
+                drawLedgerCalendar(window.__LEDGER_CACHE);
+                filterLedger();
+            }
+        }
+
+        function prevLedgerMonth() { adjustLedgerMonth(-1); }
+        function nextLedgerMonth() { adjustLedgerMonth(1); }
+        function resetLedgerFilters() {
+            window.__LEDGER_DAY_FILTER = null;
+            window.__LEDGER_MONTH = new Date().toISOString().slice(0,7);
+            const monthInput = document.getElementById('ledger-month');
+            if (monthInput) monthInput.value = window.__LEDGER_MONTH;
+            const start = document.getElementById('ledger-start-date');
+            const end = document.getElementById('ledger-end-date');
+            if (start) start.value = "";
+            if (end) end.value = "";
+            document.getElementById('ledger-search-id').value = "";
+            document.getElementById('ledger-search-hash').value = "";
+            filterLedger();
+            drawLedgerCalendar(window.__LEDGER_CACHE || []);
+        }
+
+        // --- AUDIT TRAIL ---
+        function deriveRole(txn) {
+            if (txn.txn_type === 'Collection') return 'Cashier / Collector';
+            if (txn.txn_type === 'Disbursement') return 'Bookkeeper';
+            return 'Finance Staff';
+        }
+
+        async function renderAuditTrailPage() {
+            const content = document.getElementById('content');
+            content.innerHTML = `
+                <div class="split-header">
+                    <div>
+                        <h1>Audit Trail</h1>
+                        <p style="color: var(--muted);">Verifiable record of actions and changes per transaction</p>
+                    </div>
+                    <div class="pill">Shows who did what, with role + hash</div>
+                </div>
+                <div class="module-card" id="audit-table">Loading...</div>
+            `;
+
+            try {
+                const res = await fetch(`${API_URL}/transactions?limit=200`);
                 const data = await res.json();
-                const html = `
-                    <table style="font-size: 0.85rem;">
-                        <thead><tr><th>ID</th><th>Date</th><th>Type</th><th>Cat</th><th>Amount</th><th>Status</th><th>Hash</th></tr></thead>
+
+                const logs = data.flatMap(t => {
+                    const base = {
+                        id: t.id,
+                        hash: t.tx_hash,
+                        timestamp: t.created_at,
+                        txn_type: t.txn_type,
+                        category: t.category,
+                        amount: t.amount,
+                        student: t.student_id || '—'
+                    };
+                    const recordLog = {
+                        ...base,
+                        actor: t.recorded_by,
+                        role: deriveRole(t),
+                        action: 'Transaction recorded',
+                        origin: 'Ledger Entry',
+                        status: t.status
+                    };
+                    const approvalLog = t.approved_by ? {
+                        ...base,
+                        actor: t.approved_by,
+                        role: 'Admin',
+                        action: `Transaction ${t.status}`,
+                        origin: 'Approval Workflow',
+                        timestamp: t.approval_date || t.created_at,
+                        status: t.status
+                    } : null;
+                    return approvalLog ? [recordLog, approvalLog] : [recordLog];
+                });
+
+                document.getElementById('audit-table').innerHTML = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Role</th>
+                                <th>Action</th>
+                                <th>Transaction ID</th>
+                                <th>User</th>
+                                <th>Origin</th>
+                                <th>Status</th>
+                                <th>Hash</th>
+                            </tr>
+                        </thead>
                         <tbody>
-                            ${data.map(t => `
+                            ${logs.map(l => `
                                 <tr>
-                                    <td>${t.id}</td><td>${t.created_at.split(' ')[0]}</td><td>${t.txn_type}</td><td>${t.category}</td>
-                                    <td>₱${t.amount}</td><td>${t.status}</td>
-                                    <td style="font-family: monospace; color: #555;">${t.tx_hash.substring(0, 15)}...</td>
+                                    <td>${formatDate(l.timestamp)}</td>
+                                    <td><b>${l.role}</b></td>
+                                    <td>${l.action}</td>
+                                    <td>TX-${String(l.id).padStart(5,'0')}</td>
+                                    <td>${l.actor}</td>
+                                    <td>${l.origin}</td>
+                                    <td><span class="status-badge ${l.status === 'Approved' ? 'status-approved' : l.status === 'Rejected' ? 'status-rejected' : 'status-pending'}">${l.status}</span></td>
+                                    <td style="font-family: monospace; color:#374151;">${l.hash?.substring(0,16) || ''}...</td>
                                 </tr>
                             `).join('')}
                         </tbody>
                     </table>
                 `;
-                document.getElementById('audit-table').innerHTML = html;
-            } catch(e) {}
+            } catch(e) { document.getElementById('audit-table').innerHTML = "Failed to load audit trail"; }
         }
 
         // --- VERIFICATION ---
@@ -619,125 +1559,595 @@
             const content = document.getElementById('content');
             content.innerHTML = `
                 <h1>Data Verification</h1><hr>
-                <div style="background: white; padding: 30px; border-radius: 8px; max-width: 600px;">
-                    <label>Transaction ID to Verify</label>
+                <div style="background: white; padding: 30px; border-radius: 8px; max-width: 700px; box-shadow: 0 10px 25px rgba(0,0,0,0.08);">
+                    <label>Transaction ID or Hash</label>
                     <div class="flex" style="gap: 10px;">
-                        <input type="text" id="verify-id" placeholder="Transaction ID">
+                        <input type="text" id="verify-id" placeholder="Enter Transaction ID (e.g. 125) or hash fragment">
                         <button onclick="verifyItem()" class="btn">Check Integrity</button>
+                        <button onclick="searchHash()" class="btn btn-outline">Search Hash</button>
                     </div>
+                    <small style="color: var(--muted);">Uses immutable ledger proof when ID is provided; hash search uses local ledger cache.</small>
                     <div id="verify-result" style="margin-top: 20px;"></div>
                 </div>
             `;
         }
 
         async function verifyItem() {
-            const id = document.getElementById('verify-id').value;
+            const input = document.getElementById('verify-id').value.trim();
             const resDiv = document.getElementById('verify-result');
             resDiv.innerHTML = "Querying Immudb Proof...";
+            
+            // Extract numeric ID from input (handles "1", "TX-00001", "TX-1", etc.)
+            let txnId = null;
+            if (/^\d+$/.test(input)) {
+                txnId = parseInt(input, 10);
+            } else if (input.toUpperCase().startsWith('TX-')) {
+                const numPart = input.replace(/^TX-0*/i, '');
+                if (/^\d+$/.test(numPart)) {
+                    txnId = parseInt(numPart, 10);
+                }
+            }
+            
+            if (!txnId) {
+                resDiv.innerHTML = `<div style="color: var(--danger);">❌ Invalid Transaction ID. Please enter a number (e.g., 1) or TX format (e.g., TX-00001)</div>`;
+                return;
+            }
+            
             try {
-                const res = await fetch(`${API_URL}/verify/${id}`);
+                const res = await fetch(`${API_URL}/verify/${txnId}`);
                 const data = await res.json();
                 if (res.ok) {
                     resDiv.innerHTML = `
                         <div style="background: #F0FDF4; padding: 15px; border: 1px solid var(--primary-green); border-radius: 6px;">
                             <h3 style="color: var(--primary-green); margin:0;">✅ Verified</h3>
+                            <p style="margin: 8px 0; color: #666;">Transaction ID: ${txnId}</p>
                             <pre style="font-size: 0.8rem; margin-top: 10px; overflow-x: auto;">${JSON.stringify(data.ledger_payload, null, 2)}</pre>
                         </div>`;
-                } else resDiv.innerHTML = `<div style="color: var(--danger);">❌ Verification Failed</div>`;
-            } catch(e) { resDiv.innerHTML = "Error"; }
+                } else {
+                    const errorMsg = data.detail || "Verification failed";
+                    resDiv.innerHTML = `<div style="color: var(--danger);">❌ Verification Failed: ${errorMsg}</div>`;
+                }
+            } catch(e) {
+                resDiv.innerHTML = `<div style="color: var(--danger);">❌ Error: ${e.message || 'Connection failed'}</div>`;
+            }
         }
 
-        // --- STUDENT LEDGER ---
+        function searchHash() {
+            const q = document.getElementById('verify-id').value.trim().toLowerCase();
+            const resDiv = document.getElementById('verify-result');
+            if (!window.__LEDGER_CACHE) { resDiv.innerHTML = "Load the Digital Ledger first to search hashes."; return; }
+            const matches = window.__LEDGER_CACHE.filter(t => t.tx_hash && t.tx_hash.toLowerCase().includes(q));
+            if (matches.length === 0) { resDiv.innerHTML = "No matching hashes."; return; }
+            resDiv.innerHTML = `
+                <div class="module-card" style="padding: 15px;">
+                    <strong>${matches.length} match(es)</strong>
+                    <ul style="margin-top: 10px; list-style: none; padding-left: 0;">
+                        ${matches.map(m => `<li>TX-${String(m.id).padStart(5,'0')} · ${m.tx_hash.substring(0,24)}... · ${m.status}</li>`).join('')}
+                    </ul>
+                </div>
+            `;
+        }
+
+        // --- STUDENT FINANCIAL PROFILE ---
         function renderStudentLedger() {
             const content = document.getElementById('content');
             content.innerHTML = `
-                <h1>My Ledger</h1><hr>
-                <div style="max-width: 500px; margin-bottom: 20px;">
-                    <label>Enter Student ID</label>
+                <h1>Student Financial Profile</h1><hr>
+                <div style="max-width: 520px; margin-bottom: 20px;">
+                    <label>Student ID</label>
                     <div class="flex" style="gap: 10px;">
-                        <input type="text" id="ledger-sid" placeholder="e.g. 2023-001">
+                        <input type="text" id="ledger-sid" placeholder="e.g. 23-01456">
                         <button onclick="loadLedger()" class="btn">Search</button>
                     </div>
                 </div>
-                <div id="ledger-results"></div>
+                <div id="ledger-results" class="grid" style="grid-template-columns: 1fr; gap: 16px;"></div>
             `;
         }
 
         async function loadLedger() {
             const sid = document.getElementById('ledger-sid').value;
             const resDiv = document.getElementById('ledger-results');
+            resDiv.innerHTML = "Loading...";
             try {
                 const res = await fetch(`${API_URL}/transactions?student_id=${sid}`);
                 const data = await res.json();
-                if(data.length === 0) { resDiv.innerHTML = "No records found."; return; }
+                const recent = data.slice(0,5);
+                const totals = data.reduce((acc,t)=>{
+                    if (t.txn_type === 'Collection') { acc.paid += t.amount; }
+                    else { acc.assessed += t.amount; }
+                    return acc;
+                }, {assessed:0, paid:0});
+                const outstanding = Math.max(totals.assessed - totals.paid, 0);
+
+                const monthMap = {};
+                data.forEach(t => {
+                    const m = t.created_at.slice(0,7);
+                    monthMap[m] = monthMap[m] || {};
+                    monthMap[m][t.category] = t.status === 'Approved' ? 'Paid' : 'Pending';
+                });
+
+                window.__STUDENT_LEDGER = data;
+                window.__STUDENT_LEDGER_DAY = null;
 
                 resDiv.innerHTML = `
-                    <h3>History for ${sid}</h3>
-                    <table>
-                        <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Status</th></tr></thead>
-                        <tbody>
-                            ${data.map(t => `<tr><td>${t.created_at}</td><td>${t.description}</td><td>₱${t.amount}</td><td>${t.status}</td></tr>`).join('')}
-                        </tbody>
-                    </table>`;
+                    <div class="module-card">
+                        <h3>Student Academic Information</h3>
+                        <div class="grid" style="grid-template-columns: repeat(auto-fit,minmax(160px,1fr)); gap: 10px; margin-top: 10px;">
+                            <div><div class="pill">Student ID</div><div>${sid || '—'}</div></div>
+                            <div><div class="pill">Name</div><div>On file</div></div>
+                            <div><div class="pill">Grade Level</div><div>Senior High School</div></div>
+                            <div><div class="pill">Section</div><div>-</div></div>
+                        </div>
+                    </div>
+                    <div class="module-card">
+                        <div class="split-header">
+                            <h3>Recent Financial Transactions</h3>
+                            <span class="pill">Latest 5 from digital ledger</span>
+                        </div>
+                        <table>
+                            <thead><tr><th>Date</th><th>Transaction</th><th>Type</th><th>Amount</th><th>Status</th></tr></thead>
+                            <tbody>
+                                ${recent.map(t => `<tr><td>${formatDate(t.created_at)}</td><td>${t.category}</td><td>${t.txn_type}</td><td>₱${t.amount.toLocaleString()}</td><td>${t.status}</td></tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="module-card">
+                        <div class="split-header">
+                            <h3>Outstanding Balance Summary</h3>
+                            <span class="pill">Assessed vs Paid</span>
+                        </div>
+                        <div class="grid" style="grid-template-columns: repeat(auto-fit,minmax(160px,1fr)); gap: 12px;">
+                            <div class="calendar-cell"><div class="pill">Total Assessed</div><h3>₱${totals.assessed.toLocaleString()}</h3></div>
+                            <div class="calendar-cell"><div class="pill">Total Paid</div><h3>₱${totals.paid.toLocaleString()}</h3></div>
+                            <div class="calendar-cell"><div class="pill">Remaining</div><h3 style="color:${outstanding===0?'var(--primary-green)':'var(--danger)'};">₱${outstanding.toLocaleString()}</h3></div>
+                        </div>
+                    </div>
+                    <div class="module-card">
+                        <div class="split-header">
+                            <h3>Calendar View</h3>
+                            <span class="pill">Click a day to view that day's transactions</span>
+                        </div>
+                        <div id="student-calendar" style="margin-top: 10px;"></div>
+                        <div id="student-day-details" style="margin-top: 10px; color: var(--muted);"></div>
+                    </div>
+                    <div class="module-card">
+                        <h3>Outstanding Balance by Month</h3>
+                        <table>
+                            <thead><tr><th>Month</th><th>Notes</th></tr></thead>
+                            <tbody>
+                                ${Object.keys(monthMap).length ? Object.keys(monthMap).sort().map(m => `<tr><td>${m}</td><td>${Object.entries(monthMap[m]).map(([cat,status])=>`${cat}: ${status}`).join(' · ')}</td></tr>`).join('') : '<tr><td colspan="2">No monthly records yet.</td></tr>'}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                drawStudentCalendar(data);
             } catch(e) { resDiv.innerHTML = "Error loading ledger."; }
+        }
+
+        function drawStudentCalendar(list) {
+            const calendar = document.getElementById('student-calendar');
+            if (!calendar) return;
+            if (!list || !list.length) { calendar.innerHTML = "<p>No records yet.</p>"; return; }
+
+            const month = (list[0].created_at || new Date().toISOString()).slice(0,7);
+            const [year, monthNum] = month.split('-').map(Number);
+            const firstDay = new Date(year, monthNum - 1, 1);
+            const startWeekday = firstDay.getDay();
+            const daysInMonth = new Date(year, monthNum, 0).getDate();
+
+            const byDate = {};
+            list.forEach(t => {
+                const dateKey = (t.created_at || '').slice(0,10);
+                if (dateKey.startsWith(month)) {
+                    byDate[dateKey] = byDate[dateKey] || [];
+                    byDate[dateKey].push(t);
+                }
+            });
+
+            const cells = [];
+            for (let i = 0; i < startWeekday; i++) cells.push('<div class="calendar-cell" style="background:#f9fafb;"></div>');
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${month}-${String(day).padStart(2,'0')}`;
+                const txns = byDate[dateStr] || [];
+                const isSelected = window.__STUDENT_LEDGER_DAY === dateStr;
+                const markers = txns.slice(0,3).map(t => `<div class="calendar-event">${t.txn_type}: ₱${t.amount.toLocaleString()}</div>`).join('');
+                const more = txns.length > 3 ? `<div class="calendar-event" style="color: var(--primary-green);">+${txns.length - 3} more</div>` : '';
+                cells.push(`
+                    <div class="calendar-cell ${isSelected ? 'selected-day' : ''}" onclick="selectStudentDay('${dateStr}')">
+                        <div class="pill" style="display:inline-block; margin-bottom:6px;">${day}</div>
+                        ${txns.length ? markers + more : '<div class="calendar-event" style="color: var(--muted);">No entries</div>'}
+                    </div>
+                `);
+            }
+
+            calendar.innerHTML = `
+                <div style="display:grid; grid-template-columns: repeat(7, minmax(110px, 1fr)); gap: 10px;">
+                    ${cells.join('')}
+                </div>
+            `;
+
+            renderStudentDayDetails();
+        }
+
+        function selectStudentDay(dateStr) {
+            window.__STUDENT_LEDGER_DAY = dateStr;
+            renderStudentDayDetails();
+        }
+
+        function renderStudentDayDetails() {
+            const detailDiv = document.getElementById('student-day-details');
+            if (!detailDiv) return;
+            const list = window.__STUDENT_LEDGER || [];
+            const day = window.__STUDENT_LEDGER_DAY;
+            if (!day) { detailDiv.innerHTML = "Click a day to view student transactions."; return; }
+            const matches = list.filter(t => (t.created_at || '').startsWith(day));
+            if (!matches.length) { detailDiv.innerHTML = `No entries for ${day}.`; return; }
+            detailDiv.innerHTML = `
+                <table>
+                    <thead><tr><th>Date</th><th>Transaction</th><th>Type</th><th>Amount</th><th>Status</th></tr></thead>
+                    <tbody>
+                        ${matches.map(t => `<tr><td>${formatDate(t.created_at)}</td><td>${t.category}</td><td>${t.txn_type}</td><td>₱${t.amount.toLocaleString()}</td><td>${t.status}</td></tr>`).join('')}
+                    </tbody>
+                </table>
+            `;
         }
 
         // --- USER MANAGEMENT (IT) ---
         async function renderUserManagement() {
-             const content = document.getElementById('content');
-             content.innerHTML = `
-                <h1>User Management</h1><hr>
-                <div class="grid" style="grid-template-columns: 2fr 1fr; gap: 20px;">
-                    <div>
-                        <h3>System Users</h3>
-                        <div id="user-list">Loading...</div>
+            if (!currentUser || currentUser.role !== 'admin') {
+                showToast("Admin access required", true);
+                navigate('dashboard');
+                return;
+            }
+
+            const content = document.getElementById('content');
+            content.innerHTML = `
+                <div class="split-header">
+                    <h1>User Management</h1>
+                    <button class="btn" onclick="openAddUserModal()">Add Account</button>
+                </div>
+                <hr style="margin: 15px 0; border: 0; border-top: 1px solid #ddd;">
+                <div id="user-list">Loading...</div>
+            `;
+
+            await loadUsers();
+        }
+
+        async function loadUsers() {
+            const listDiv = document.getElementById('user-list');
+            try {
+                const res = await fetch(`${API_URL}/users`);
+                const users = await res.json();
+                
+                if (!users || users.length === 0) {
+                    listDiv.innerHTML = '<p style="text-align: center; color: var(--muted); padding: 40px;">No users found.</p>';
+                    return;
+                }
+
+                listDiv.innerHTML = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Role</th>
+                                <th>First Name</th>
+                                <th>Last Name</th>
+                                <th>Gender</th>
+                                <th>Email</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${users.map(u => `
+                                <tr>
+                                    <td>
+                                        <select id="role-${u.username}" onchange="updateUserRole('${u.username}')" style="padding: 6px; border: 1px solid #ddd; border-radius: 4px; background: white;">
+                                            ${Object.keys(ROLES).map(r => `<option value="${r}" ${r === u.role ? 'selected' : ''}>${ROLES[r]}</option>`).join('')}
+                                        </select>
+                                    </td>
+                                    <td>${u.first_name || '—'}</td>
+                                    <td>${u.last_name || '—'}</td>
+                                    <td>${u.gender || '—'}</td>
+                                    <td>${u.contact_info || '—'}</td>
+                                    <td>
+                                        <button class="btn btn-danger" onclick="deleteUser('${u.username}')" style="padding: 6px 12px; font-size: 0.85rem;">Delete</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch(e) {
+                listDiv.innerHTML = '<p style="color: var(--danger);">Failed to load users.</p>';
+            }
+        }
+
+        async function updateUserRole(username) {
+            const roleSelect = document.getElementById(`role-${username}`);
+            const newRole = roleSelect.value;
+            
+            try {
+                const res = await fetch(`${API_URL}/users/${username}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({role: newRole})
+                });
+                if (res.ok) {
+                    showToast("Role updated successfully");
+                } else {
+                    const err = await res.json().catch(() => ({detail: "Failed"}));
+                    showToast(err.detail || "Update failed", true);
+                    // Revert selection
+                    await loadUsers();
+                }
+            } catch(err) {
+                showToast("Error updating role", true);
+                await loadUsers();
+            }
+        }
+
+        async function deleteUser(username) {
+            if (!confirm(`Are you sure you want to delete user "${username}"? This action cannot be undone.`)) {
+                return;
+            }
+            
+            try {
+                const res = await fetch(`${API_URL}/users/${username}`, {
+                    method: 'DELETE'
+                });
+                if (res.ok) {
+                    showToast("User deleted successfully");
+                    await loadUsers();
+                } else {
+                    const err = await res.json().catch(() => ({detail: "Failed"}));
+                    showToast(err.detail || "Delete failed", true);
+                }
+            } catch(err) {
+                showToast("Error deleting user", true);
+            }
+        }
+
+        function openAddUserModal() {
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.id = 'add-user-modal';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Add New Account</h2>
+                        <button class="modal-close" onclick="closeAddUserModal()">&times;</button>
                     </div>
-                    <div style="background: white; padding: 20px; border-radius: 8px;">
-                        <h3>Add User</h3>
-                        <form id="user-form">
-                            <input type="text" id="u-name" placeholder="Full Name" required>
-                            <input type="text" id="u-user" placeholder="Username" required>
-                            <input type="password" id="u-pass" placeholder="Password" required>
-                            <select id="u-role">
-                                ${Object.keys(ROLES).map(r => `<option value="${r}">${ROLES[r]}</option>`).join('')}
+                    <form id="user-form">
+                        <label>Username</label>
+                        <input type="text" id="u-user" placeholder="Username" required>
+                        <label>Password</label>
+                        <input type="password" id="u-pass" placeholder="Password" required>
+                        <label>Role</label>
+                        <select id="u-role">
+                            ${Object.keys(ROLES).map(r => `<option value="${r}">${ROLES[r]}</option>`).join('')}
+                        </select>
+                        <label>First Name</label>
+                        <input type="text" id="u-first-name" placeholder="First Name" required>
+                        <label>Middle Name</label>
+                        <input type="text" id="u-middle-name" placeholder="Middle Name (optional)">
+                        <label>Last Name</label>
+                        <input type="text" id="u-last-name" placeholder="Last Name" required>
+                        <label>Contact Information (Email)</label>
+                        <input type="text" id="u-contact" placeholder="Email or Phone">
+                        <label>Gender</label>
+                        <select id="u-gender">
+                            <option value="">Select Gender</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                        </select>
+                        <div style="display: flex; gap: 10px; margin-top: 20px;">
+                            <button type="submit" class="btn" style="flex: 1;">Create Account</button>
+                            <button type="button" class="btn btn-outline" onclick="closeAddUserModal()" style="flex: 1;">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            document.getElementById('user-form').onsubmit = async (e) => {
+                e.preventDefault();
+                try {
+                    const payload = {
+                        username: document.getElementById('u-user').value,
+                        password: document.getElementById('u-pass').value,
+                        role: document.getElementById('u-role').value,
+                        name: `${document.getElementById('u-first-name').value} ${document.getElementById('u-last-name').value}`,
+                        first_name: document.getElementById('u-first-name').value,
+                        middle_name: document.getElementById('u-middle-name').value || null,
+                        last_name: document.getElementById('u-last-name').value,
+                        contact_info: document.getElementById('u-contact').value || null,
+                        gender: document.getElementById('u-gender').value || null,
+                        active: true
+                    };
+                    const res = await fetch(`${API_URL}/users`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(payload)
+                    });
+                    if(res.ok) {
+                        showToast("Account created successfully");
+                        closeAddUserModal();
+                        await loadUsers();
+                    } else {
+                        const err = await res.json().catch(() => ({detail: "Failed"}));
+                        showToast(err.detail || "Failed", true);
+                    }
+                } catch(err) {
+                    showToast("Error creating account", true);
+                }
+            };
+            
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) closeAddUserModal();
+            });
+        }
+
+        function closeAddUserModal() {
+            const modal = document.getElementById('add-user-modal');
+            if (modal) modal.remove();
+        }
+
+        // --- SETTINGS PAGE ---
+        async function renderSettingsPage() {
+            const content = document.getElementById('content');
+            content.innerHTML = `
+                <h1>Settings</h1><hr>
+                <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div class="module-card">
+                        <h3>Profile Information</h3>
+                        <form id="profile-form">
+                            <label>First Name</label>
+                            <input type="text" id="profile-first-name" placeholder="First Name">
+                            <label>Middle Name</label>
+                            <input type="text" id="profile-middle-name" placeholder="Middle Name (optional)">
+                            <label>Last Name</label>
+                            <input type="text" id="profile-last-name" placeholder="Last Name">
+                            <label>Contact Information</label>
+                            <input type="text" id="profile-contact" placeholder="Email or Phone">
+                            <label>Gender</label>
+                            <select id="profile-gender">
+                                <option value="">Select Gender</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Other">Other</option>
                             </select>
-                            <button type="submit" class="btn" style="width: 100%;">Create User</button>
+                            <button type="submit" class="btn" style="width: 100%; margin-top: 10px;">Update Profile</button>
+                        </form>
+                    </div>
+                    <div class="module-card">
+                        <h3>Change Password</h3>
+                        <form id="password-form">
+                            <label>Current Password</label>
+                            <input type="password" id="current-password" placeholder="Current Password" required>
+                            <label>New Password</label>
+                            <input type="password" id="new-password" placeholder="New Password" required>
+                            <label>Confirm New Password</label>
+                            <input type="password" id="confirm-password" placeholder="Confirm New Password" required>
+                            <button type="submit" class="btn" style="width: 100%; margin-top: 10px;">Change Password</button>
                         </form>
                     </div>
                 </div>
-             `;
+            `;
 
-             // Fetch Users
-             try {
-                const res = await fetch(`${API_URL}/users`);
-                const users = await res.json();
-                document.getElementById('user-list').innerHTML = `
-                    <table>
-                        <thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Active</th></tr></thead>
-                        <tbody>${users.map(u => `<tr><td>${u.username}</td><td>${u.name}</td><td>${u.role}</td><td>${u.active}</td></tr>`).join('')}</tbody>
-                    </table>
-                `;
-             } catch(e) { document.getElementById('user-list').innerHTML = "Failed to load users"; }
+            // Load current profile
+            try {
+                const res = await fetch(`${API_URL}/profile`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username: currentUser.username})
+                });
+                if (res.ok) {
+                    const profile = await res.json();
+                    document.getElementById('profile-first-name').value = profile.first_name || '';
+                    document.getElementById('profile-middle-name').value = profile.middle_name || '';
+                    document.getElementById('profile-last-name').value = profile.last_name || '';
+                    document.getElementById('profile-contact').value = profile.contact_info || '';
+                    document.getElementById('profile-gender').value = profile.gender || '';
+                }
+            } catch(e) {
+                console.error("Failed to load profile", e);
+            }
 
-             // Add User Handler
-             document.getElementById('user-form').onsubmit = async (e) => {
-                 e.preventDefault();
-                 try {
-                     const payload = {
-                         name: document.getElementById('u-name').value,
-                         username: document.getElementById('u-user').value,
-                         password: document.getElementById('u-pass').value,
-                         role: document.getElementById('u-role').value,
-                         active: true
-                     };
-                     const res = await fetch(`${API_URL}/users`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
-                     if(res.ok) { showToast("User Created"); renderUserManagement(); }
-                     else showToast("Failed", true);
-                 } catch(err) { showToast("Error", true); }
+            // Profile update handler
+            document.getElementById('profile-form').onsubmit = async (e) => {
+                e.preventDefault();
+                try {
+                    const payload = {
+                        first_name: document.getElementById('profile-first-name').value || null,
+                        middle_name: document.getElementById('profile-middle-name').value || null,
+                        last_name: document.getElementById('profile-last-name').value || null,
+                        contact_info: document.getElementById('profile-contact').value || null,
+                        gender: document.getElementById('profile-gender').value || null
+                    };
+                    const res = await fetch(`${API_URL}/profile`, {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({username: currentUser.username, profile: payload})
+                    });
+                    if (res.ok) {
+                        showToast("Profile updated successfully");
+                        // Update current user display name
+                        const newName = payload.first_name && payload.last_name 
+                            ? `${payload.first_name} ${payload.last_name}`
+                            : (payload.first_name || payload.last_name || currentUser.name);
+                        currentUser.name = newName;
+                        currentUser.first_name = payload.first_name;
+                        currentUser.last_name = payload.last_name;
+                        localStorage.setItem('user', JSON.stringify(currentUser));
+                        document.getElementById('user-display').innerText = newName;
+                    } else {
+                        const err = await res.json().catch(() => ({detail: "Failed"}));
+                        showToast(err.detail || "Update failed", true);
+                    }
+                } catch(err) {
+                    showToast("Error updating profile", true);
+                }
+            };
+
+            // Password change handler
+            document.getElementById('password-form').onsubmit = async (e) => {
+                e.preventDefault();
+                const newPwd = document.getElementById('new-password').value;
+                const confirmPwd = document.getElementById('confirm-password').value;
+                if (newPwd !== confirmPwd) {
+                    showToast("New passwords do not match", true);
+                    return;
+                }
+                try {
+                    const payload = {
+                        current_password: document.getElementById('current-password').value,
+                        new_password: newPwd
+                    };
+                    const res = await fetch(`${API_URL}/change-password`, {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            username: currentUser.username,
+                            current_password: payload.current_password,
+                            new_password: payload.new_password
+                        })
+                    });
+                    if (res.ok) {
+                        showToast("Password changed successfully");
+                        document.getElementById('password-form').reset();
+                    } else {
+                        const err = await res.json().catch(() => ({detail: "Failed"}));
+                        showToast(err.detail || "Password change failed", true);
+                    }
+                } catch(err) {
+                    showToast("Error changing password", true);
+                }
              };
         }
 
         // Utils
+        function formatDate(dateStr) {
+            if (!dateStr) return '—';
+            // Convert ISO date string to "YYYY-MM-DD HH:MM:SS" format
+            // Handles formats like "2026-01-19T08:59:01" or "2026-01-19 08:59:01" or "2026-01-19T08:59:01.123456+00:00"
+            try {
+                const d = new Date(dateStr);
+                if (isNaN(d.getTime())) return dateStr; // Return original if invalid
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                const hours = String(d.getHours()).padStart(2, '0');
+                const minutes = String(d.getMinutes()).padStart(2, '0');
+                const seconds = String(d.getSeconds()).padStart(2, '0');
+                return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+            } catch(e) {
+                // If parsing fails, try to extract date and time manually
+                const match = dateStr.match(/(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})/);
+                if (match) return `${match[1]} ${match[2]}`;
+                return dateStr;
+            }
+        }
+
         function showToast(msg, isError = false) {
             const t = document.getElementById('toast');
             t.innerText = msg; t.className = isError ? 'error' : ''; t.classList.add('show');

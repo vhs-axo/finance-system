@@ -11,6 +11,8 @@ class LoginResponse(BaseModel):
     success: bool
     role: str | None = None
     name: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
     message: str
 
 
@@ -19,6 +21,11 @@ class UserBase(BaseModel):
     role: str
     name: str
     active: bool = True
+    first_name: str | None = None
+    middle_name: str | None = None
+    last_name: str | None = None
+    contact_info: str | None = None
+    gender: str | None = None
 
 
 class UserCreate(UserBase):
@@ -30,6 +37,24 @@ class UserUpdate(BaseModel):
     name: str | None = None
     active: bool | None = None
     password: str | None = None
+    first_name: str | None = None
+    middle_name: str | None = None
+    last_name: str | None = None
+    contact_info: str | None = None
+    gender: str | None = None
+
+
+class UserProfileUpdate(BaseModel):
+    first_name: str | None = None
+    middle_name: str | None = None
+    last_name: str | None = None
+    contact_info: str | None = None
+    gender: str | None = None
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
 
 
 class UserResponse(UserBase):
@@ -85,6 +110,22 @@ class ApprovalRequest(BaseModel):
     action: str  # 'Approve' or 'Reject'
 
 
+class AdminActionRequest(BaseModel):
+    admin_username: str
+
+
+class TransactionUpdateAdmin(BaseModel):
+    admin_username: str
+    txn_type: str | None = None
+    strand: str | None = None
+    category: str | None = None
+    description: str | None = None
+    amount: float | None = None
+    status: str | None = None
+    student_id: str | None = None
+    proof_reference: str | None = None
+
+
 # --- STATS SCHEMAS ---
 class DashboardStats(BaseModel):
     total_tuition: float
@@ -92,3 +133,5 @@ class DashboardStats(BaseModel):
     total_org: float
     total_expenses: float
     pending_count: int
+    collections_by_category: dict
+    disbursements_by_category: dict

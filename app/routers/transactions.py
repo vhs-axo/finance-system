@@ -6,9 +6,29 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException
 
 from ..database import get_db_client
-from ..schemas import ApprovalRequest, TransactionCreate, TransactionResponse
+from ..schemas import (
+    AdminActionRequest,
+    ApprovalRequest,
+    TransactionCreate,
+    TransactionResponse,
+    TransactionUpdateAdmin,
+)
 
 router = APIRouter(tags=["Transactions"])
+
+
+def ensure_admin(client, username: str):
+    """Raises 403 if the provided user is not an active admin."""
+    try:
+        res = client.sqlQuery(
+            f"SELECT role, active FROM users WHERE username = '{username}'"
+        )
+        if not res or res[0][0] != "admin" or not res[0][1]:
+            raise HTTPException(status_code=403, detail="Admin privileges required")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/transactions", response_model=TransactionResponse)
@@ -203,4 +223,67 @@ def approve_transaction(txn_id: int, approval: ApprovalRequest):
         return {"message": f"Transaction {new_status}"}
     except Exception as e:
         print(f"Approval Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/transactions/{txn_id}")
+def admin_update_transaction(txn_id: int, payload: TransactionUpdateAdmin):
+    """
+    Admin-only endpoint to edit ledger entries.
+    """
+    client = get_db_client()
+    ensure_admin(client, payload.admin_username)
+
+    updates = []
+    if payload.txn_type:
+        updates.append(f"txn_type = '{payload.txn_type}'")
+    if payload.strand:
+        updates.append(f"strand = '{payload.strand}'")
+    if payload.category:
+        updates.append(f"category = '{payload.category}'")
+    if payload.description is not None:
+        updates.append(f"description = '{payload.description}'")
+    if payload.amount is not None:
+        updates.append(f"amount = {int(payload.amount * 100)}")
+    if payload.status:
+        updates.append(f"status = '{payload.status}'")
+    if payload.student_id is not None:
+        updates.append(f"student_id = '{payload.student_id}'")
+    if payload.proof_reference is not None:
+        updates.append(f"proof_reference = '{payload.proof_reference}'")
+
+    if not updates:
+        return {"message": "No changes requested"}
+
+    set_clause = ", ".join(updates)
+
+    try:
+        client.sqlExec(f"UPDATE transactions SET {set_clause} WHERE id = {txn_id}")
+        return {"message": "Transaction updated"}
+    except Exception as e:
+        print(f"Update Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/transactions/{txn_id}/void")
+def admin_void_transaction(txn_id: int, payload: AdminActionRequest):
+    """
+    Admin-only endpoint to void (soft-delete) ledger entries.
+    Preserves record for audit by setting status and stamping admin + date.
+    """
+    client = get_db_client()
+    ensure_admin(client, payload.admin_username)
+    try:
+        client.sqlExec(
+            f"""
+            UPDATE transactions
+            SET status = 'Voided',
+                approved_by = '{payload.admin_username}',
+                approval_date = NOW()
+            WHERE id = {txn_id}
+            """
+        )
+        return {"message": "Transaction voided"}
+    except Exception as e:
+        print(f"Void Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

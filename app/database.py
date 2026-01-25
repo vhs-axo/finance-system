@@ -7,9 +7,13 @@ from .core import (
     DB_PORT,
     DB_USER,
     INITIAL_ADMIN_PASS,
-    INITIAL_AUDITOR_PASS,
-    INITIAL_IT_PASS,
-    INITIAL_STAFF_PASS,
+    INITIAL_PAYABLES_PASS,
+    INITIAL_VP_FINANCE_PASS,
+    INITIAL_PRESIDENT_PASS,
+    INITIAL_PROCUREMENT_PASS,
+    INITIAL_DEPT_HEAD_PASS,
+    INITIAL_BOOKKEEPER_PASS,
+    INITIAL_STUDENT_PASS,
 )
 from .utils import get_password_hash
 
@@ -45,46 +49,165 @@ def seed_users(client: ImmudbClient):
             # In a full production app, use parameterized queries if the client library supports them fully
             users_to_seed = [
                 (
-                    "admin",
+                    "admin@gmail.com",
                     get_password_hash(INITIAL_ADMIN_PASS),
                     "admin",
-                    "Principal Skinner",
+                    "System Administrator",
+                    "System",
+                    "Administrator",
+                    "admin@gmail.com",
+                    "Other",
                 ),
                 (
-                    "staff",
-                    get_password_hash(INITIAL_STAFF_PASS),
-                    "staff",
-                    "Finance Clerk",
+                    "payables@gmail.com",
+                    get_password_hash(INITIAL_PAYABLES_PASS),
+                    "payables",
+                    "Payables Associate",
+                    "Payables",
+                    "Associate",
+                    "payables@gmail.com",
+                    "Other",
                 ),
                 (
-                    "auditor",
-                    get_password_hash(INITIAL_AUDITOR_PASS),
-                    "auditor",
-                    "External Auditor",
+                    "vpfinance@gmail.com",
+                    get_password_hash(INITIAL_VP_FINANCE_PASS),
+                    "vp_finance",
+                    "VP Finance",
+                    "VP",
+                    "Finance",
+                    "vpfinance@gmail.com",
+                    "Other",
                 ),
                 (
-                    "it",
-                    get_password_hash(INITIAL_IT_PASS),
-                    "it",
-                    "System Admin",
+                    "president@gmail.com",
+                    get_password_hash(INITIAL_PRESIDENT_PASS),
+                    "president",
+                    "President",
+                    "President",
+                    "Office",
+                    "president@gmail.com",
+                    "Other",
                 ),
                 (
-                    "S-2024-001",
-                    get_password_hash("student123"),
+                    "procurement@gmail.com",
+                    get_password_hash(INITIAL_PROCUREMENT_PASS),
+                    "procurement",
+                    "Procurement Officer",
+                    "Procurement",
+                    "Officer",
+                    "procurement@gmail.com",
+                    "Other",
+                ),
+                (
+                    "depthead@gmail.com",
+                    get_password_hash(INITIAL_DEPT_HEAD_PASS),
+                    "dept_head",
+                    "Department Head",
+                    "Department",
+                    "Head",
+                    "depthead@gmail.com",
+                    "Other",
+                ),
+                (
+                    "bookkeeper@gmail.com",
+                    get_password_hash(INITIAL_BOOKKEEPER_PASS),
+                    "bookkeeper",
+                    "Bookkeeper",
+                    "Bookkeeper",
+                    "Account",
+                    "bookkeeper@gmail.com",
+                    "Other",
+                ),
+                (
+                    "student@gmail.com",
+                    get_password_hash(INITIAL_STUDENT_PASS),
                     "student",
-                    "Juan Dela Cruz",
+                    "Student Account",
+                    "Student",
+                    "Account",
+                    "student@gmail.com",
+                    "Other",
                 ),
             ]
 
             for u in users_to_seed:
                 query = f"""
-                    INSERT INTO users (username, hashed_password, role, name, active)
-                    VALUES ('{u[0]}', '{u[1]}', '{u[2]}', '{u[3]}', true)
+                    INSERT INTO users (
+                        username, 
+                        hashed_password, 
+                        role, 
+                        name,
+                        first_name,
+                        last_name,
+                        contact_info,
+                        gender,
+                        active
+                    )
+                    VALUES (
+                        '{u[0]}', 
+                        '{u[1]}', 
+                        '{u[2]}', 
+                        '{u[3]}',
+                        '{u[4]}',
+                        '{u[5]}',
+                        '{u[6]}',
+                        '{u[7]}',
+                        true
+                    )
                 """
                 client.sqlExec(query)
             print("✅ Default users seeded successfully.")
     except Exception as e:
         print(f"⚠️ Seeding failed: {e}")
+
+
+def ensure_users_table_schema(client):
+    """Ensure the users table has all required columns. Recreates if needed."""
+    try:
+        # Try to query all expected columns
+        client.sqlQuery("SELECT id, username, hashed_password, role, name, active, first_name, middle_name, last_name, contact_info, gender FROM users LIMIT 1")
+        # All columns exist
+        return
+    except Exception:
+        # Columns are missing - need to recreate table
+        print("⚠️  Users table schema outdated. Migrating...")
+        try:
+            # Try to backup existing users (if any)
+            try:
+                existing_users = client.sqlQuery("SELECT username, hashed_password, role, name, active FROM users")
+                print(f"  Found {len(existing_users)} existing users (will be preserved if possible)")
+            except Exception:
+                existing_users = []
+            
+            # Drop existing table
+            try:
+                client.sqlExec("DROP TABLE users")
+            except Exception:
+                pass  # Table might not exist
+            
+            # Create new table with all columns
+            client.sqlExec("""
+                CREATE TABLE users (
+                    id INTEGER AUTO_INCREMENT,
+                    username VARCHAR,
+                    hashed_password VARCHAR,
+                    role VARCHAR,
+                    name VARCHAR,
+                    active BOOLEAN,
+                    first_name VARCHAR,
+                    middle_name VARCHAR,
+                    last_name VARCHAR,
+                    contact_info VARCHAR,
+                    gender VARCHAR,
+                    PRIMARY KEY id
+                )
+            """)
+            print("  ✅ Users table schema migrated")
+            
+            # Note: We don't restore existing users here as they would be missing profile data
+            # The seed_users function will create default users if table is empty
+        except Exception as e:
+            print(f"  ⚠️  Migration warning: {e}")
 
 
 def init_db():
@@ -114,18 +237,30 @@ def init_db():
             )
         """)
 
-        # 2. Create Users Table
-        client.sqlExec("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER AUTO_INCREMENT,
-                username VARCHAR,
-                hashed_password VARCHAR,
-                role VARCHAR,
-                name VARCHAR,
-                active BOOLEAN,
-                PRIMARY KEY id
-            )
-        """)
+        # 2. Ensure Users Table has correct schema
+        ensure_users_table_schema(client)
+        
+        # Create table if it doesn't exist (after migration check)
+        try:
+            client.sqlQuery("SELECT id FROM users LIMIT 1")
+        except Exception:
+            # Table doesn't exist, create it
+            client.sqlExec("""
+                CREATE TABLE users (
+                    id INTEGER AUTO_INCREMENT,
+                    username VARCHAR,
+                    hashed_password VARCHAR,
+                    role VARCHAR,
+                    name VARCHAR,
+                    active BOOLEAN,
+                    first_name VARCHAR,
+                    middle_name VARCHAR,
+                    last_name VARCHAR,
+                    contact_info VARCHAR,
+                    gender VARCHAR,
+                    PRIMARY KEY id
+                )
+            """)
 
         # 3. Create Index for faster lookups
         try:
