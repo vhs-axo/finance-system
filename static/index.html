@@ -634,14 +634,15 @@
             if (r !== 'guest' && r !== 'student') items.push({id: 'dashboard', label: 'Dashboard'});
             if (r === 'guest') items.push({id: 'dashboard', label: 'Transparency Board'});
             if (r === 'student') items.push({id: 'student-ledger', label: 'My Financial Profile'});
-            const ledgerRoles = ['staff','admin','officer','auditor','guest','payables','vp_finance','president','procurement','dept_head','bookkeeper'];
-            const auditRoles = ['admin','officer','auditor','vp_finance','president'];
-            const txnRoles = ['staff','admin','officer','payables','bookkeeper','procurement'];
+            const ledgerRoles = ['admin','payables','vp_finance','president','procurement','dept_head','bookkeeper'];
+            const auditRoles = ['admin','vp_finance','president'];
+            const txnRoles = ['admin','payables','bookkeeper','procurement']; // Only these roles can create transactions
 
             if (ledgerRoles.includes(r)) items.push({id: 'digital-ledger', label: 'Digital Ledger'});
             if (auditRoles.includes(r)) items.push({id: 'audit-trail', label: 'Audit Trail'});
             if (txnRoles.includes(r)) items.push({id: 'transaction', label: 'Transactions'});
-            if (r === 'admin') items.push({id: 'approvals', label: 'Pending Approvals'});
+            // VP Finance, President, and Admin can see pending approvals
+            if (['admin','vp_finance','president'].includes(r)) items.push({id: 'approvals', label: 'Pending Approvals'});
             items.push({id: 'verification', label: 'Verification'});
             if (r === 'admin') items.push({id: 'users', label: 'User Management'});
             items.push({id: 'settings', label: 'Settings'});
@@ -818,7 +819,7 @@
                             <div class="ribbon-header">
                                 <div class="ribbon-username">${t.recorded_by}</div>
                                 <div style="display: flex; align-items: center; gap: 10px;">
-                                    <span class="status-badge ${t.status === 'Approved' ? 'status-approved' : t.status === 'Rejected' ? 'status-rejected' : 'status-pending'}">${t.status}</span>
+                                    <span class="status-badge ${t.status === 'Approved' ? 'status-approved' : t.status === 'Rejected' ? 'status-rejected' : t.status === 'Endorsed' ? 'status-approved' : 'status-pending'}">${t.status}</span>
                                     ${isAdmin ? `
                                         <button class="btn btn-outline" style="padding: 4px 12px; font-size: 0.85rem;" onclick="editTransactionRibbon(${t.id})">Edit</button>
                                         <button class="btn btn-danger" style="padding: 4px 12px; font-size: 0.85rem;" onclick="voidTransactionRibbon(${t.id})">Void</button>
@@ -847,6 +848,11 @@
                                     <div class="ribbon-detail-label">Hash</div>
                                     <div class="ribbon-detail-value" style="font-family: monospace; font-size: 0.8rem; color: var(--muted);">${t.tx_hash?.substring(0,16) || '—'}...</div>
                                 </div>
+                                ${currentUser && currentUser.role === 'dept_head' && t.txn_type === 'Disbursement' && t.status === 'Approved' ? `
+                                <div class="ribbon-detail-item" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;">
+                                    <button class="btn" onclick="acknowledgePayment(${t.id})" style="width: 100%;">Acknowledge Receipt of Payment</button>
+                                </div>
+                                ` : ''}
                             </div>
                         </div>
                     `;
@@ -1036,10 +1042,140 @@
         // --- APPROVALS ---
         async function renderApprovalsPage() {
             const content = document.getElementById('content');
-            content.innerHTML = `<h1>Pending Approvals</h1><p style="color: var(--muted);">Admin-only: modify or delete/Reject records</p><hr><div id="approval-list"></div>`;
+            const userRole = currentUser?.role;
+            let pageTitle = "Pending Approvals";
+            let pageDesc = "Review and approve transaction requests";
+            
+            if (userRole === 'vp_finance') {
+                pageTitle = "Pending Endorsements";
+                pageDesc = "Review and endorse disbursement requests";
+            } else if (userRole === 'president') {
+                pageTitle = "Pending Approvals";
+                pageDesc = "Review and approve/reject disbursements (final approval authority)";
+            } else if (userRole === 'admin') {
+                pageDesc = "Review and approve/reject any transaction";
+            }
+            
+            content.innerHTML = `<h1>${pageTitle}</h1><p style="color: var(--muted);">${pageDesc}</p><hr><div id="approval-list"></div>`;
 
             try {
-                const res = await fetch(`${API_URL}/transactions?status=Pending`);
+                // Fetch transactions based on role
+                let statusFilter = 'Pending';
+                if (userRole === 'president') {
+                    // President sees both Pending and Endorsed transactions (has final say on both)
+                    // Endorsed transactions should appear first
+                    const [pendingRes, endorsedRes, usersRes] = await Promise.all([
+                        fetch(`${API_URL}/transactions?status=Pending`),
+                        fetch(`${API_URL}/transactions?status=Endorsed`),
+                        fetch(`${API_URL}/users`)
+                    ]);
+                    const pending = await pendingRes.json();
+                    const endorsed = await endorsedRes.json();
+                    const users = await usersRes.json();
+                    
+                    // Create user lookup map for VP Finance name
+                    const userMap = {};
+                    users.forEach(u => {
+                        userMap[u.username] = {
+                            firstName: u.first_name || '',
+                            lastName: u.last_name || '',
+                            fullName: `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username
+                        };
+                    });
+                    
+                    // Sort: Endorsed first, then Pending
+                    const data = [...endorsed, ...pending];
+                    
+                    if (data.length === 0) {
+                        document.getElementById('approval-list').innerHTML = "<p>No pending approvals.</p>";
+                        return;
+                    }
+                    
+                    document.getElementById('approval-list').innerHTML = data.map(t => {
+                        const isEndorsed = t.status === 'Endorsed';
+                        const endorserInfo = isEndorsed && t.approved_by ? userMap[t.approved_by] : null;
+                        const endorserName = endorserInfo ? endorserInfo.fullName : (t.approved_by || 'VP Finance');
+                        
+                        return `
+                            <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); ${isEndorsed ? 'border-left: 4px solid var(--primary-green);' : ''}">
+                                ${isEndorsed ? `
+                                <div style="background: #e6f7e6; padding: 8px 12px; border-radius: 4px; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                                    <span style="font-weight: bold; color: var(--primary-green); font-size: 0.9rem;">✓ ENDORSED</span>
+                                    <span style="color: #666; font-size: 0.85rem;">Endorsed by: <b>${endorserName}</b></span>
+                                    ${t.approval_date ? `<span style="color: #666; font-size: 0.85rem; margin-left: auto;">${formatDate(t.approval_date)}</span>` : ''}
+                                </div>
+                                ` : ''}
+                                <div class="flex" style="justify-content: space-between; margin-bottom: 10px;">
+                                    <h3 style="margin:0;">${t.category} (${t.txn_type})</h3>
+                                    <div>
+                                        <strong style="font-size: 1.2rem;">₱${t.amount.toLocaleString()}</strong>
+                                        ${!isEndorsed ? `<span class="status-badge status-pending" style="margin-left: 10px;">Pending</span>` : ''}
+                                    </div>
+                                </div>
+                                <p style="color: #666; margin-bottom: 5px;">${t.description}</p>
+                                <div style="font-size: 0.9rem; margin-bottom: 15px;">
+                                    By: <b>${t.recorded_by}</b> | Date: ${formatDate(t.created_at)}
+                                    ${t.proof_reference ? ` | <a href="${API_URL}/${t.proof_reference}" target="_blank" style="color: var(--primary-green);">View Proof</a>` : ''}
+                                </div>
+                                <div class="flex" style="gap: 10px;">
+                                    <button onclick="approveTxn(${t.id}, 'Approve')" class="btn">Approve</button>
+                                    <button onclick="approveTxn(${t.id}, 'Reject')" class="btn btn-danger">Reject</button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                    return;
+                } else if (userRole === 'vp_finance') {
+                    statusFilter = 'Pending'; // VP Finance sees pending transactions
+                } else if (userRole === 'admin') {
+                    // Admin sees both pending and endorsed
+                    const [pendingRes, endorsedRes] = await Promise.all([
+                        fetch(`${API_URL}/transactions?status=Pending`),
+                        fetch(`${API_URL}/transactions?status=Endorsed`)
+                    ]);
+                    const pending = await pendingRes.json();
+                    const endorsed = await endorsedRes.json();
+                    const data = [...pending, ...endorsed];
+                    
+                    if (data.length === 0) {
+                        document.getElementById('approval-list').innerHTML = "<p>No pending approvals.</p>";
+                        return;
+                    }
+                    
+                    document.getElementById('approval-list').innerHTML = data.map(t => {
+                        const canApprove = userRole === 'admin' || 
+                            (userRole === 'vp_finance' && t.status === 'Pending') ||
+                            (userRole === 'president' && t.status === 'Endorsed');
+                        const actionLabel = userRole === 'vp_finance' ? 'Endorse' : 
+                                          userRole === 'president' ? 'Approve' : 'Approve';
+                        
+                        return `
+                            <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                <div class="flex" style="justify-content: space-between; margin-bottom: 10px;">
+                                    <h3 style="margin:0;">${t.category} (${t.txn_type})</h3>
+                                    <div>
+                                        <strong style="font-size: 1.2rem;">₱${t.amount.toLocaleString()}</strong>
+                                        <span class="status-badge ${t.status === 'Endorsed' ? 'status-approved' : 'status-pending'}" style="margin-left: 10px;">${t.status}</span>
+                                    </div>
+                                </div>
+                                <p style="color: #666; margin-bottom: 5px;">${t.description}</p>
+                                <div style="font-size: 0.9rem; margin-bottom: 15px;">
+                                    By: <b>${t.recorded_by}</b> | Date: ${formatDate(t.created_at)}
+                                    ${t.proof_reference ? ` | <a href="${API_URL}/${t.proof_reference}" target="_blank" style="color: var(--primary-green);">View Proof</a>` : ''}
+                                </div>
+                                ${canApprove ? `
+                                <div class="flex" style="gap: 10px;">
+                                    <button onclick="approveTxn(${t.id}, 'Approve')" class="btn">${actionLabel}</button>
+                                    <button onclick="approveTxn(${t.id}, 'Reject')" class="btn btn-danger">Reject</button>
+                                </div>
+                                ` : '<p style="color: var(--muted); font-size: 0.9rem;">Awaiting previous approval step</p>'}
+                            </div>
+                        `;
+                    }).join('');
+                    return;
+                }
+                
+                const res = await fetch(`${API_URL}/transactions?status=${statusFilter}`);
                 const data = await res.json();
 
                 if (data.length === 0) {
@@ -1047,24 +1183,34 @@
                     return;
                 }
 
-                document.getElementById('approval-list').innerHTML = data.map(t => `
-                    <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                        <div class="flex" style="justify-content: space-between; margin-bottom: 10px;">
-                            <h3 style="margin:0;">${t.category} (${t.txn_type})</h3>
-                            <strong style="font-size: 1.2rem;">₱${t.amount.toLocaleString()}</strong>
+                document.getElementById('approval-list').innerHTML = data.map(t => {
+                    const actionLabel = userRole === 'vp_finance' ? 'Endorse' : 
+                                      userRole === 'president' ? 'Approve' : 'Approve';
+                    
+                    return `
+                        <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                            <div class="flex" style="justify-content: space-between; margin-bottom: 10px;">
+                                <h3 style="margin:0;">${t.category} (${t.txn_type})</h3>
+                                <div>
+                                    <strong style="font-size: 1.2rem;">₱${t.amount.toLocaleString()}</strong>
+                                    <span class="status-badge ${t.status === 'Endorsed' ? 'status-approved' : 'status-pending'}" style="margin-left: 10px;">${t.status}</span>
+                                </div>
+                            </div>
+                            <p style="color: #666; margin-bottom: 5px;">${t.description}</p>
+                            <div style="font-size: 0.9rem; margin-bottom: 15px;">
+                                By: <b>${t.recorded_by}</b> | Date: ${formatDate(t.created_at)}
+                                ${t.proof_reference ? ` | <a href="${API_URL}/${t.proof_reference}" target="_blank" style="color: var(--primary-green);">View Proof</a>` : ''}
+                            </div>
+                            <div class="flex" style="gap: 10px;">
+                                <button onclick="approveTxn(${t.id}, 'Approve')" class="btn">${actionLabel}</button>
+                                <button onclick="approveTxn(${t.id}, 'Reject')" class="btn btn-danger">Reject</button>
+                            </div>
                         </div>
-                        <p style="color: #666; margin-bottom: 5px;">${t.description}</p>
-                        <div style="font-size: 0.9rem; margin-bottom: 15px;">
-                            By: <b>${t.recorded_by}</b> | Date: ${formatDate(t.created_at)}
-                            ${t.proof_reference ? ` | <a href="${API_URL}/${t.proof_reference}" target="_blank" style="color: var(--primary-green);">View Proof</a>` : ''}
-                        </div>
-                        <div class="flex" style="gap: 10px;">
-                            <button onclick="approveTxn(${t.id}, 'Approve')" class="btn">Approve</button>
-                            <button onclick="approveTxn(${t.id}, 'Reject')" class="btn btn-danger">Reject</button>
-                        </div>
-                    </div>
-                `).join('');
-            } catch(e) {}
+                    `;
+                }).join('');
+            } catch(e) {
+                document.getElementById('approval-list').innerHTML = '<p style="color: var(--danger);">Failed to load approvals.</p>';
+            }
         }
 
         async function approveTxn(id, action) {
@@ -1329,6 +1475,29 @@
             } catch(e) { showToast("Void error", true); }
         }
 
+        async function acknowledgePayment(id) {
+            if (!currentUser || currentUser.role !== 'dept_head') { 
+                showToast("Only Department Head can acknowledge payments", true); 
+                return; 
+            }
+            const confirmAck = confirm("Acknowledge receipt of this payment?");
+            if (!confirmAck) return;
+            try {
+                const res = await fetch(`${API_URL}/transactions/${id}/acknowledge`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({admin_username: currentUser.username})
+                });
+                if (res.ok) {
+                    showToast("Payment acknowledged");
+                    renderTransactionPage();
+                } else {
+                    const msg = await res.json().catch(()=>({detail:"Failed"}));
+                    showToast(msg.detail || "Acknowledgment failed", true);
+                }
+            } catch(e) { showToast("Acknowledgment error", true); }
+        }
+
         function getLedgerMonth(list) {
             const dayFilter = window.__LEDGER_DAY_FILTER;
             if (dayFilter) return dayFilter.slice(0,7);
@@ -1468,12 +1637,6 @@
         }
 
         // --- AUDIT TRAIL ---
-        function deriveRole(txn) {
-            if (txn.txn_type === 'Collection') return 'Cashier / Collector';
-            if (txn.txn_type === 'Disbursement') return 'Bookkeeper';
-            return 'Finance Staff';
-        }
-
         async function renderAuditTrailPage() {
             const content = document.getElementById('content');
             content.innerHTML = `
@@ -1488,8 +1651,25 @@
             `;
 
             try {
-                const res = await fetch(`${API_URL}/transactions?limit=200`);
-                const data = await res.json();
+                // Fetch transactions and users
+                const [txnRes, usersRes] = await Promise.all([
+                    fetch(`${API_URL}/transactions?limit=200`),
+                    fetch(`${API_URL}/users`)
+                ]);
+                const data = await txnRes.json();
+                const users = await usersRes.json();
+                
+                // Create user lookup map (username -> {role, first_name, last_name})
+                const userMap = {};
+                users.forEach(u => {
+                    userMap[u.username] = {
+                        role: u.role,
+                        roleName: ROLES[u.role] || u.role,
+                        firstName: u.first_name || '',
+                        lastName: u.last_name || '',
+                        fullName: `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username
+                    };
+                });
 
                 const logs = data.flatMap(t => {
                     const base = {
@@ -1501,23 +1681,46 @@
                         amount: t.amount,
                         student: t.student_id || '—'
                     };
+                    
+                    // Get user info for recorded_by
+                    const recorderInfo = userMap[t.recorded_by] || {
+                        role: 'Unknown',
+                        roleName: 'Unknown',
+                        fullName: t.recorded_by
+                    };
+                    
                     const recordLog = {
                         ...base,
                         actor: t.recorded_by,
-                        role: deriveRole(t),
+                        actorName: recorderInfo.fullName,
+                        role: recorderInfo.role,
+                        roleName: recorderInfo.roleName,
                         action: 'Transaction recorded',
                         origin: 'Ledger Entry',
                         status: t.status
                     };
-                    const approvalLog = t.approved_by ? {
-                        ...base,
-                        actor: t.approved_by,
-                        role: 'Admin',
-                        action: `Transaction ${t.status}`,
-                        origin: 'Approval Workflow',
-                        timestamp: t.approval_date || t.created_at,
-                        status: t.status
-                    } : null;
+                    
+                    // Get user info for approved_by if exists
+                    let approvalLog = null;
+                    if (t.approved_by) {
+                        const approverInfo = userMap[t.approved_by] || {
+                            role: 'Unknown',
+                            roleName: 'Unknown',
+                            fullName: t.approved_by
+                        };
+                        approvalLog = {
+                            ...base,
+                            actor: t.approved_by,
+                            actorName: approverInfo.fullName,
+                            role: approverInfo.role,
+                            roleName: approverInfo.roleName,
+                            action: `Transaction ${t.status}`,
+                            origin: 'Approval Workflow',
+                            timestamp: t.approval_date || t.created_at,
+                            status: t.status
+                        };
+                    }
+                    
                     return approvalLog ? [recordLog, approvalLog] : [recordLog];
                 });
 
@@ -1539,19 +1742,22 @@
                             ${logs.map(l => `
                                 <tr>
                                     <td>${formatDate(l.timestamp)}</td>
-                                    <td><b>${l.role}</b></td>
+                                    <td><b>${l.roleName}</b></td>
                                     <td>${l.action}</td>
                                     <td>TX-${String(l.id).padStart(5,'0')}</td>
-                                    <td>${l.actor}</td>
+                                    <td>${l.actorName}</td>
                                     <td>${l.origin}</td>
-                                    <td><span class="status-badge ${l.status === 'Approved' ? 'status-approved' : l.status === 'Rejected' ? 'status-rejected' : 'status-pending'}">${l.status}</span></td>
+                                    <td><span class="status-badge ${l.status === 'Approved' ? 'status-approved' : l.status === 'Rejected' ? 'status-rejected' : l.status === 'Endorsed' ? 'status-approved' : 'status-pending'}">${l.status}</span></td>
                                     <td style="font-family: monospace; color:#374151;">${l.hash?.substring(0,16) || ''}...</td>
                                 </tr>
                             `).join('')}
                         </tbody>
                     </table>
                 `;
-            } catch(e) { document.getElementById('audit-table').innerHTML = "Failed to load audit trail"; }
+            } catch(e) { 
+                console.error('Audit trail error:', e);
+                document.getElementById('audit-table').innerHTML = "Failed to load audit trail"; 
+            }
         }
 
         // --- VERIFICATION ---
@@ -2000,13 +2206,14 @@
                 <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 20px;">
                     <div class="module-card">
                         <h3>Profile Information</h3>
+                        <p style="color: var(--muted); font-size: 0.9rem; margin-bottom: 15px;">Update your personal information</p>
                         <form id="profile-form">
                             <label>First Name</label>
-                            <input type="text" id="profile-first-name" placeholder="First Name">
+                            <input type="text" id="profile-first-name" placeholder="First Name" required>
                             <label>Middle Name</label>
                             <input type="text" id="profile-middle-name" placeholder="Middle Name (optional)">
                             <label>Last Name</label>
-                            <input type="text" id="profile-last-name" placeholder="Last Name">
+                            <input type="text" id="profile-last-name" placeholder="Last Name" required>
                             <label>Contact Information</label>
                             <input type="text" id="profile-contact" placeholder="Email or Phone">
                             <label>Gender</label>
@@ -2035,59 +2242,103 @@
             `;
 
             // Load current profile
-            try {
-                const res = await fetch(`${API_URL}/profile`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({username: currentUser.username})
-                });
-                if (res.ok) {
-                    const profile = await res.json();
-                    document.getElementById('profile-first-name').value = profile.first_name || '';
-                    document.getElementById('profile-middle-name').value = profile.middle_name || '';
-                    document.getElementById('profile-last-name').value = profile.last_name || '';
-                    document.getElementById('profile-contact').value = profile.contact_info || '';
-                    document.getElementById('profile-gender').value = profile.gender || '';
+            async function loadProfile() {
+                if (!currentUser || !currentUser.username) {
+                    console.warn("No current user found");
+                    return;
                 }
-            } catch(e) {
-                console.error("Failed to load profile", e);
+                
+                try {
+                    // Use POST method (more reliable)
+                    const res = await fetch(`${API_URL}/profile`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({username: currentUser.username})
+                    });
+                    
+                    if (res.ok) {
+                        const profile = await res.json();
+                        // Populate form fields with current profile data
+                        const firstNameInput = document.getElementById('profile-first-name');
+                        const middleNameInput = document.getElementById('profile-middle-name');
+                        const lastNameInput = document.getElementById('profile-last-name');
+                        const contactInput = document.getElementById('profile-contact');
+                        const genderSelect = document.getElementById('profile-gender');
+                        
+                        if (firstNameInput) firstNameInput.value = profile.first_name || '';
+                        if (middleNameInput) middleNameInput.value = profile.middle_name || '';
+                        if (lastNameInput) lastNameInput.value = profile.last_name || '';
+                        if (contactInput) contactInput.value = profile.contact_info || '';
+                        if (genderSelect) genderSelect.value = profile.gender || '';
+                    } else {
+                        const errorText = await res.text();
+                        let errorMsg = "Failed to load profile";
+                        try {
+                            const err = JSON.parse(errorText);
+                            errorMsg = err.detail || errorMsg;
+                        } catch {
+                            errorMsg = errorText || errorMsg;
+                        }
+                        console.error("Profile load error:", res.status, errorMsg);
+                        // Don't show error toast, just log it - form is still usable
+                        console.warn("Profile not loaded, but form is still available for updates");
+                    }
+                } catch(e) {
+                    console.error("Failed to load profile", e);
+                    // Don't block the form - user can still update
+                }
             }
+            
+            // Load profile after a short delay to ensure DOM is ready
+            setTimeout(loadProfile, 100);
 
             // Profile update handler
-            document.getElementById('profile-form').onsubmit = async (e) => {
-                e.preventDefault();
-                try {
-                    const payload = {
-                        first_name: document.getElementById('profile-first-name').value || null,
-                        middle_name: document.getElementById('profile-middle-name').value || null,
-                        last_name: document.getElementById('profile-last-name').value || null,
-                        contact_info: document.getElementById('profile-contact').value || null,
-                        gender: document.getElementById('profile-gender').value || null
-                    };
-                    const res = await fetch(`${API_URL}/profile`, {
-                        method: 'PUT',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({username: currentUser.username, profile: payload})
-                    });
-                    if (res.ok) {
-                        showToast("Profile updated successfully");
-                        // Update current user display name
-                        const newName = payload.first_name && payload.last_name 
-                            ? `${payload.first_name} ${payload.last_name}`
-                            : (payload.first_name || payload.last_name || currentUser.name);
-                        currentUser.name = newName;
-                        currentUser.first_name = payload.first_name;
-                        currentUser.last_name = payload.last_name;
-                        localStorage.setItem('user', JSON.stringify(currentUser));
-                        document.getElementById('user-display').innerText = newName;
-                    } else {
-                        const err = await res.json().catch(() => ({detail: "Failed"}));
-                        showToast(err.detail || "Update failed", true);
+            const profileForm = document.getElementById('profile-form');
+            if (profileForm) {
+                profileForm.onsubmit = async (e) => {
+                    e.preventDefault();
+                    try {
+                        const firstName = document.getElementById('profile-first-name').value.trim();
+                        const middleName = document.getElementById('profile-middle-name').value.trim();
+                        const lastName = document.getElementById('profile-last-name').value.trim();
+                        const contact = document.getElementById('profile-contact').value.trim();
+                        const gender = document.getElementById('profile-gender').value;
+                        
+                        const payload = {
+                            first_name: firstName || null,
+                            middle_name: middleName || null,
+                            last_name: lastName || null,
+                            contact_info: contact || null,
+                            gender: gender || null
+                        };
+                        
+                        const res = await fetch(`${API_URL}/profile`, {
+                            method: 'PUT',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({username: currentUser.username, profile: payload})
+                        });
+                        
+                        if (res.ok) {
+                            showToast("Profile updated successfully");
+                            // Update current user display name
+                            const newName = (firstName && lastName) 
+                                ? `${firstName} ${lastName}`
+                                : (firstName || lastName || currentUser.name || currentUser.username);
+                            currentUser.name = newName;
+                            currentUser.first_name = firstName;
+                            currentUser.last_name = lastName;
+                            localStorage.setItem('user', JSON.stringify(currentUser));
+                            updateUIState(); // Refresh UI with new name
+                        } else {
+                            const err = await res.json().catch(() => ({detail: "Failed"}));
+                            showToast(err.detail || "Update failed", true);
+                        }
+                    } catch(err) {
+                        console.error("Profile update error:", err);
+                        showToast("Error updating profile", true);
                     }
-                } catch(err) {
-                    showToast("Error updating profile", true);
-                }
-            };
+                };
+            }
 
             // Password change handler
             document.getElementById('password-form').onsubmit = async (e) => {

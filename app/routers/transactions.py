@@ -1,6 +1,7 @@
 import binascii
 import hashlib
 import json
+from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
@@ -17,29 +18,49 @@ from ..schemas import (
 router = APIRouter(tags=["Transactions"])
 
 
-def ensure_admin(client, username: str):
-    """Raises 403 if the provided user is not an active admin."""
+def get_user_role(client, username: str):
+    """Get user role and active status."""
     try:
         res = client.sqlQuery(
             f"SELECT role, active FROM users WHERE username = '{username}'"
         )
-        if not res or res[0][0] != "admin" or not res[0][1]:
-            raise HTTPException(status_code=403, detail="Admin privileges required")
-    except HTTPException:
-        raise
+        if not res or not res[0][1]:  # Not found or not active
+            return None
+        return res[0][0]  # Return role
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return None
+
+
+def ensure_admin(client, username: str):
+    """Raises 403 if the provided user is not an active admin."""
+    role = get_user_role(client, username)
+    if role != "admin":
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+
+
+def ensure_role(client, username: str, allowed_roles: list):
+    """Raises 403 if the provided user is not in the allowed roles."""
+    role = get_user_role(client, username)
+    if role not in allowed_roles:
+        raise HTTPException(
+            status_code=403, 
+            detail=f"Access denied. Required roles: {', '.join(allowed_roles)}"
+        )
 
 
 @router.post("/transactions", response_model=TransactionResponse)
 def create_transaction(txn: TransactionCreate):
     client = get_db_client()
     try:
-        # LOGIC CHANGE: Only Disbursement requires approval
+        # Role-based permission: Only Payables Associate, Bookkeeper, Procurement, and Admin can create transactions
+        allowed_roles = ["payables", "bookkeeper", "procurement", "admin"]
+        ensure_role(client, txn.recorded_by, allowed_roles)
+        
+        # LOGIC CHANGE: Only Disbursement requires approval workflow
         if txn.txn_type == "Disbursement":
-            status = "Pending"
+            status = "Pending"  # Needs VP Finance endorsement, then President approval
         else:
-            status = "Approved"
+            status = "Approved"  # Collections are auto-approved
 
         # Convert float to integer cents for storage
         amount_cents = int(txn.amount * 100)
@@ -205,11 +226,56 @@ def verify_transaction_integrity(txn_id: int):
 @router.put("/transactions/{txn_id}/approve")
 def approve_transaction(txn_id: int, approval: ApprovalRequest):
     """
-    Approval Workflow
+    Multi-level Approval Workflow:
+    - VP Finance: Can endorse pending disbursements (status: "Pending" → "Endorsed")
+    - President: Has final say - can approve/reject both Pending and Endorsed disbursements
+    - Admin: Can approve/reject any transaction
     """
     client = get_db_client()
     try:
-        new_status = "Approved" if approval.action == "Approve" else "Rejected"
+        # Get current transaction status
+        txn_res = client.sqlQuery(
+            f"SELECT txn_type, status FROM transactions WHERE id = {txn_id}"
+        )
+        if not txn_res:
+            raise HTTPException(status_code=404, detail="Transaction not found")
+        
+        txn_type = txn_res[0][0]
+        current_status = txn_res[0][1]
+        user_role = get_user_role(client, approval.admin_username)
+        
+        if not user_role:
+            raise HTTPException(status_code=403, detail="Invalid user")
+        
+        # Determine new status based on role and action
+        if approval.action == "Reject":
+            new_status = "Rejected"
+        elif user_role == "admin":
+            # Admin can directly approve/reject anything
+            new_status = "Approved" if approval.action == "Approve" else "Rejected"
+        elif user_role == "vp_finance":
+            # VP Finance can endorse disbursements (marks as endorsed, but doesn't approve)
+            if txn_type == "Disbursement" and current_status == "Pending":
+                new_status = "Endorsed" if approval.action == "Approve" else "Rejected"
+            else:
+                raise HTTPException(
+                    status_code=403, 
+                    detail="VP Finance can only endorse pending disbursements"
+                )
+        elif user_role == "president":
+            # President has final say - can approve/reject both Pending and Endorsed disbursements
+            if txn_type == "Disbursement" and current_status in ["Pending", "Endorsed"]:
+                new_status = "Approved" if approval.action == "Approve" else "Rejected"
+            else:
+                raise HTTPException(
+                    status_code=403,
+                    detail="President can only approve/reject disbursements"
+                )
+        else:
+            raise HTTPException(
+                status_code=403,
+                detail="You do not have permission to approve transactions"
+            )
 
         query = f"""
             UPDATE transactions
@@ -221,6 +287,8 @@ def approve_transaction(txn_id: int, approval: ApprovalRequest):
         client.sqlExec(query)
 
         return {"message": f"Transaction {new_status}"}
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Approval Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -286,4 +354,57 @@ def admin_void_transaction(txn_id: int, payload: AdminActionRequest):
         return {"message": "Transaction voided"}
     except Exception as e:
         print(f"Void Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/transactions/{txn_id}/acknowledge")
+def acknowledge_transaction(txn_id: int, payload: AdminActionRequest):
+    """
+    Department Head endpoint to acknowledge receipt of payment for departmental requests.
+    """
+    client = get_db_client()
+    user_role = get_user_role(client, payload.admin_username)
+    
+    if user_role != "dept_head":
+        raise HTTPException(
+            status_code=403,
+            detail="Only Department Head can acknowledge receipt of payments"
+        )
+    
+    try:
+        # Get transaction to verify it's a disbursement
+        txn_res = client.sqlQuery(
+            f"SELECT txn_type, status FROM transactions WHERE id = {txn_id}"
+        )
+        if not txn_res:
+            raise HTTPException(status_code=404, detail="Transaction not found")
+        
+        txn_type = txn_res[0][0]
+        if txn_type != "Disbursement":
+            raise HTTPException(
+                status_code=400,
+                detail="Only disbursements can be acknowledged"
+            )
+        
+        # Add acknowledgment note to description
+        # Get current description first
+        desc_res = client.sqlQuery(
+            f"SELECT description FROM transactions WHERE id = {txn_id}"
+        )
+        current_desc = desc_res[0][0] if desc_res and desc_res[0][0] else ""
+        ack_note = f" [Acknowledged by {payload.admin_username} on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]"
+        new_desc = current_desc + ack_note
+        
+        client.sqlExec(
+            f"""
+            UPDATE transactions
+            SET description = '{new_desc.replace("'", "''")}'
+            WHERE id = {txn_id}
+            """
+        )
+        return {"message": "Payment acknowledged"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Acknowledgment Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

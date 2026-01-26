@@ -186,30 +186,41 @@ class ProfileRequest(BaseModel):
     username: str
 
 
+def _get_user_profile(username: str):
+    """Internal helper to fetch user profile."""
+    client = get_db_client()
+    if not username:
+        raise HTTPException(status_code=400, detail="Username is required")
+    
+    result = client.sqlQuery(
+        f"SELECT username, role, name, first_name, middle_name, last_name, contact_info, gender FROM users WHERE username = '{username}'"
+    )
+    if not result or len(result) == 0:
+        raise HTTPException(status_code=404, detail=f"User '{username}' not found")
+    
+    row = result[0]
+    return {
+        "username": row[0],
+        "role": row[1],
+        "name": row[2],
+        "first_name": row[3] if len(row) > 3 and row[3] else None,
+        "middle_name": row[4] if len(row) > 4 and row[4] else None,
+        "last_name": row[5] if len(row) > 5 and row[5] else None,
+        "contact_info": row[6] if len(row) > 6 and row[6] else None,
+        "gender": row[7] if len(row) > 7 and row[7] else None,
+    }
+
+
 @router.post("/profile")
 def get_current_user_profile(req: ProfileRequest):
     """Get current user's profile."""
-    client = get_db_client()
     try:
-        result = client.sqlQuery(
-            f"SELECT username, role, name, first_name, middle_name, last_name, contact_info, gender FROM users WHERE username = '{req.username}'"
-        )
-        if not result:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        row = result[0]
-        return {
-            "username": row[0],
-            "role": row[1],
-            "name": row[2],
-            "first_name": row[3] if len(row) > 3 else None,
-            "middle_name": row[4] if len(row) > 4 else None,
-            "last_name": row[5] if len(row) > 5 else None,
-            "contact_info": row[6] if len(row) > 6 else None,
-            "gender": row[7] if len(row) > 7 else None,
-        }
+        return _get_user_profile(req.username)
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Profile fetch error: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching profile: {str(e)}")
 
 
 class ProfileUpdateRequest(BaseModel):
