@@ -91,6 +91,43 @@ def create_transaction(txn: TransactionCreate):
         new_id = res[0][0]
         created_at = res[0][1]
 
+        # If this is a Collection transaction with a student_id, update bill balances
+        if txn.txn_type == "Collection" and txn.student_id:
+            try:
+                # Get all pending/partial bill assignments for this student
+                bill_res = client.sqlQuery(f"""
+                    SELECT id, amount, paid_amount
+                    FROM bill_assignments
+                    WHERE student_id = '{txn.student_id}' AND status IN ('Pending', 'Partial')
+                    ORDER BY id ASC
+                """)
+                
+                remaining_payment = amount_cents
+                for bill_assignment in bill_res:
+                    if remaining_payment <= 0:
+                        break
+                    
+                    assignment_id = bill_assignment[0]
+                    bill_amount = bill_assignment[1]
+                    paid_amount = bill_assignment[2]
+                    remaining_bill = bill_amount - paid_amount
+                    
+                    if remaining_bill > 0:
+                        payment_to_apply = min(remaining_payment, remaining_bill)
+                        new_paid = paid_amount + payment_to_apply
+                        new_status = "Paid" if new_paid >= bill_amount else "Partial"
+                        
+                        client.sqlExec(f"""
+                            UPDATE bill_assignments
+                            SET paid_amount = {new_paid}, status = '{new_status}'
+                            WHERE id = {assignment_id}
+                        """)
+                        
+                        remaining_payment -= payment_to_apply
+            except Exception as e:
+                print(f"⚠️  Bill balance update warning: {e}")
+                # Don't fail the transaction if bill update fails
+
         # --- IMMUTABLE LEDGER ENTRY (verifiedSet) ---
         # We explicitly store critical data in the Key-Value store using verifiedSet.
         # This ensures a cryptographic proof is generated and verified for this specific entry.

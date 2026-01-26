@@ -72,24 +72,35 @@ def get_users():
     """List all users (For IT/Admin)."""
     client = get_db_client()
     try:
-        result = client.sqlQuery(
-            "SELECT username, role, name, active, first_name, middle_name, last_name, contact_info, gender FROM users"
-        )
+        # Try to include strand if column exists
+        try:
+            result = client.sqlQuery(
+                "SELECT username, role, name, active, first_name, middle_name, last_name, contact_info, gender, strand FROM users"
+            )
+            has_strand = True
+        except Exception:
+            # Strand column doesn't exist yet
+            result = client.sqlQuery(
+                "SELECT username, role, name, active, first_name, middle_name, last_name, contact_info, gender FROM users"
+            )
+            has_strand = False
+        
         users = []
         for row in result:
-            users.append(
-                {
-                    "username": row[0],
-                    "role": row[1],
-                    "name": row[2],
-                    "active": row[3],
-                    "first_name": row[4] if len(row) > 4 else None,
-                    "middle_name": row[5] if len(row) > 5 else None,
-                    "last_name": row[6] if len(row) > 6 else None,
-                    "contact_info": row[7] if len(row) > 7 else None,
-                    "gender": row[8] if len(row) > 8 else None,
-                }
-            )
+            user_data = {
+                "username": row[0],
+                "role": row[1],
+                "name": row[2],
+                "active": row[3],
+                "first_name": row[4] if len(row) > 4 else None,
+                "middle_name": row[5] if len(row) > 5 else None,
+                "last_name": row[6] if len(row) > 6 else None,
+                "contact_info": row[7] if len(row) > 7 else None,
+                "gender": row[8] if len(row) > 8 else None,
+            }
+            if has_strand:
+                user_data["strand"] = row[9] if len(row) > 9 else None
+            users.append(user_data)
         return users
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -192,9 +203,16 @@ def _get_user_profile(username: str):
     if not username:
         raise HTTPException(status_code=400, detail="Username is required")
     
-    result = client.sqlQuery(
-        f"SELECT username, role, name, first_name, middle_name, last_name, contact_info, gender FROM users WHERE username = '{username}'"
-    )
+    # Try to get strand if column exists, otherwise return None
+    try:
+        result = client.sqlQuery(
+            f"SELECT username, role, name, first_name, middle_name, last_name, contact_info, gender, strand FROM users WHERE username = '{username}'"
+        )
+    except Exception:
+        # Strand column might not exist yet, query without it
+        result = client.sqlQuery(
+            f"SELECT username, role, name, first_name, middle_name, last_name, contact_info, gender FROM users WHERE username = '{username}'"
+        )
     if not result or len(result) == 0:
         raise HTTPException(status_code=404, detail=f"User '{username}' not found")
     
@@ -208,6 +226,7 @@ def _get_user_profile(username: str):
         "last_name": row[5] if len(row) > 5 and row[5] else None,
         "contact_info": row[6] if len(row) > 6 and row[6] else None,
         "gender": row[7] if len(row) > 7 and row[7] else None,
+        "strand": row[8] if len(row) > 8 and row[8] else None,
     }
 
 

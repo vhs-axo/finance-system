@@ -10,9 +10,9 @@ router = APIRouter(tags=["Statistics"])
 def get_stats():
     client = get_db_client()
     try:
-        # We fetch minimal columns needed for calculation
+        # We fetch minimal columns needed for calculation including date for monthly trends
         result = client.sqlQuery(
-            "SELECT txn_type, category, amount, status FROM transactions"
+            "SELECT txn_type, category, amount, status, created_at FROM transactions"
         )
 
         tuition = 0.0
@@ -50,6 +50,24 @@ def get_stats():
                     org += amount
                 bump(collections_by_category, category, amount)
 
+        # Calculate monthly collection trends
+        monthly_collections = {}
+        for row in result:
+            txn_type = row[0]
+            amount = row[2] / 100.0
+            status = row[3]
+            created_at = row[4] if len(row) > 4 else None
+            
+            if txn_type == "Collection" and status != "Pending" and created_at:
+                # Extract month from timestamp (YYYY-MM format)
+                try:
+                    created_at_str = str(created_at)
+                    if len(created_at_str) >= 7:
+                        month_key = created_at_str[:7]  # Get YYYY-MM
+                        monthly_collections[month_key] = monthly_collections.get(month_key, 0) + amount
+                except Exception:
+                    pass
+        
         return {
             "total_tuition": tuition,
             "total_misc": misc,
@@ -58,6 +76,7 @@ def get_stats():
             "pending_count": pending,
             "collections_by_category": collections_by_category,
             "disbursements_by_category": disbursements_by_category,
+            "monthly_collections": monthly_collections,
         }
     except Exception as e:
         print(f"Stats Error: {e}")
@@ -68,4 +87,7 @@ def get_stats():
             "total_org": 0,
             "total_expenses": 0,
             "pending_count": 0,
+            "collections_by_category": {},
+            "disbursements_by_category": {},
+            "monthly_collections": {},
         }

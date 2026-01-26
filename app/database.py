@@ -262,14 +262,72 @@ def init_db():
                 )
             """)
 
-        # 3. Create Index for faster lookups
+        # 3. Create Bills Table (for Payables bill management)
+        try:
+            client.sqlQuery("SELECT id FROM bills LIMIT 1")
+        except Exception:
+            # Table doesn't exist, create it
+            client.sqlExec("""
+                CREATE TABLE bills (
+                    id INTEGER AUTO_INCREMENT,
+                    created_at TIMESTAMP,
+                    bill_type VARCHAR,
+                    description VARCHAR,
+                    total_amount INTEGER,
+                    created_by VARCHAR,
+                    PRIMARY KEY id
+                )
+            """)
+
+        # 4. Create Bill Assignments Table (links bills to students)
+        try:
+            client.sqlQuery("SELECT id FROM bill_assignments LIMIT 1")
+        except Exception:
+            # Table doesn't exist, create it
+            client.sqlExec("""
+                CREATE TABLE bill_assignments (
+                    id INTEGER AUTO_INCREMENT,
+                    bill_id INTEGER,
+                    student_id VARCHAR,
+                    amount INTEGER,
+                    paid_amount INTEGER,
+                    status VARCHAR,
+                    PRIMARY KEY id
+                )
+            """)
+
+        # 5. Create Financial Allocations Table
+        try:
+            client.sqlQuery("SELECT id FROM financial_allocations LIMIT 1")
+        except Exception:
+            # Table doesn't exist, create it
+            client.sqlExec("""
+                CREATE TABLE financial_allocations (
+                    id INTEGER AUTO_INCREMENT,
+                    name VARCHAR,
+                    amount INTEGER,
+                    PRIMARY KEY id
+                )
+            """)
+
+        # 6. Add strand column to users table if it doesn't exist
+        try:
+            client.sqlQuery("SELECT strand FROM users LIMIT 1")
+        except Exception:
+            # Column doesn't exist, need to add it
+            # Since Immudb doesn't support ALTER TABLE ADD COLUMN easily, we'll note it for manual migration
+            print("⚠️  Note: 'strand' column should be added to users table for dept_head and student roles")
+            # For now, we'll handle this in the application layer
+
+        # 7. Create Index for faster lookups
         try:
             client.sqlExec("CREATE INDEX ON transactions(student_id)")
             client.sqlExec("CREATE INDEX ON transactions(status)")
+            client.sqlExec("CREATE INDEX ON bill_assignments(student_id)")
         except Exception:
             pass  # Index might already exist
 
-        # 4. Seed Users
+        # 8. Seed Users
         seed_users(client)
 
         print("✅ Database initialized successfully.")

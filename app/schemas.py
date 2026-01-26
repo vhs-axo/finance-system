@@ -26,6 +26,7 @@ class UserBase(BaseModel):
     last_name: str | None = None
     contact_info: str | None = None
     gender: str | None = None
+    strand: str | None = None
 
 
 class UserCreate(UserBase):
@@ -135,3 +136,4 @@ class DashboardStats(BaseModel):
     pending_count: int
     collections_by_category: dict
     disbursements_by_category: dict
+    monthly_collections: dict | None = None

@@ -50,5 +50,17 @@ INITIAL_DEPT_HEAD_PASS=depthead123
 INITIAL_BOOKKEEPER_PASS=bookkeeper123
 ```
 
-or yk j run reset_users.py and see what it is
+login details to check each of the ff accounts are just the names of the roles and the password login would be the role123
 
+i.e.
+
+username: admin
+password: admin123
+
+there are 2 sutudent accounts already created
+
+username: student
+password: student123
+
+username: 24-87456
+password: 123
