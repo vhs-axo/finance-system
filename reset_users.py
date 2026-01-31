@@ -30,6 +30,7 @@ DB_PASSWORD = os.getenv("DB_PASSWORD", "immudb")
 from app.utils import get_password_hash
 
 # User definitions with simple usernames and email format contact info
+# strand and payment_plan: used for students; others get strand "Other", payment_plan ""
 USERS = [
     {
         "username": "admin",
@@ -38,7 +39,9 @@ USERS = [
         "first_name": "System",
         "last_name": "Administrator",
         "contact_info": "admin@gmail.com",
-        "gender": "Other"
+        "gender": "Other",
+        "strand": "Other",
+        "payment_plan": "",
     },
     {
         "username": "payables",
@@ -47,7 +50,9 @@ USERS = [
         "first_name": "Payables",
         "last_name": "Associate",
         "contact_info": "payables@gmail.com",
-        "gender": "Other"
+        "gender": "Other",
+        "strand": "Other",
+        "payment_plan": "",
     },
     {
         "username": "vpfinance",
@@ -56,7 +61,9 @@ USERS = [
         "first_name": "VP",
         "last_name": "Finance",
         "contact_info": "vpfinance@gmail.com",
-        "gender": "Other"
+        "gender": "Other",
+        "strand": "Other",
+        "payment_plan": "",
     },
     {
         "username": "president",
@@ -65,7 +72,9 @@ USERS = [
         "first_name": "President",
         "last_name": "Office",
         "contact_info": "president@gmail.com",
-        "gender": "Other"
+        "gender": "Other",
+        "strand": "Other",
+        "payment_plan": "",
     },
     {
         "username": "procurement",
@@ -74,7 +83,9 @@ USERS = [
         "first_name": "Procurement",
         "last_name": "Officer",
         "contact_info": "procurement@gmail.com",
-        "gender": "Other"
+        "gender": "Other",
+        "strand": "Other",
+        "payment_plan": "",
     },
     {
         "username": "depthead",
@@ -83,7 +94,9 @@ USERS = [
         "first_name": "Department",
         "last_name": "Head",
         "contact_info": "depthead@gmail.com",
-        "gender": "Other"
+        "gender": "Other",
+        "strand": "Other",
+        "payment_plan": "",
     },
     {
         "username": "bookkeeper",
@@ -92,17 +105,21 @@ USERS = [
         "first_name": "Bookkeeper",
         "last_name": "Account",
         "contact_info": "bookkeeper@gmail.com",
-        "gender": "Other"
+        "gender": "Other",
+        "strand": "Other",
+        "payment_plan": "",
     },
     {
         "username": "student",
-        "password": os.getenv("INITIAL_STUDENT_PASS", "student123"),
+        "password": "123",
         "role": "student",
         "first_name": "Student",
         "last_name": "Account",
         "contact_info": "student@gmail.com",
-        "gender": "Other"
-    }
+        "gender": "Other",
+        "strand": "Other",
+        "payment_plan": "plan_a",
+    },
 ]
 
 
@@ -118,7 +135,7 @@ def ensure_users_table_schema(client):
         table_exists = False
     
     if not table_exists:
-        # Create table with all columns
+        # Create table with all columns (including strand, payment_plan)
         print("  Creating users table...")
         client.sqlExec("""
             CREATE TABLE users (
@@ -133,45 +150,37 @@ def ensure_users_table_schema(client):
                 last_name VARCHAR,
                 contact_info VARCHAR,
                 gender VARCHAR,
+                strand VARCHAR,
+                payment_plan VARCHAR,
                 PRIMARY KEY id
             )
         """)
         print("  ✅ Users table created with all columns")
     else:
-        # Try to add missing columns (Immudb may not support ALTER TABLE, so we'll recreate)
+        # Check for strand and payment_plan; add via ALTER TABLE if missing (immudb supports ADD COLUMN)
         print("  Table exists. Checking schema...")
         try:
-            # Try to query all expected columns
-            test_query = client.sqlQuery("SELECT id, username, hashed_password, role, name, active, first_name, middle_name, last_name, contact_info, gender FROM users LIMIT 1")
+            client.sqlQuery("SELECT strand FROM users LIMIT 1")
+        except Exception:
+            try:
+                client.sqlExec("ALTER TABLE users ADD COLUMN strand VARCHAR")
+                print("  ✅ Added column 'strand' to users table")
+            except Exception as e:
+                print(f"  ⚠️  Could not add strand: {e}")
+        try:
+            client.sqlQuery("SELECT payment_plan FROM users LIMIT 1")
+        except Exception:
+            try:
+                client.sqlExec("ALTER TABLE users ADD COLUMN payment_plan VARCHAR")
+                print("  ✅ Added column 'payment_plan' to users table")
+            except Exception as e:
+                print(f"  ⚠️  Could not add payment_plan: {e}")
+        try:
+            client.sqlQuery("SELECT id, username, hashed_password, role, name, active, first_name, middle_name, last_name, contact_info, gender, strand, payment_plan FROM users LIMIT 1")
             print("  ✅ All columns exist")
         except Exception:
-            # Columns are missing - need to recreate table
-            print("  ⚠️  Missing columns detected. Recreating table...")
-            try:
-                # Drop existing table
-                client.sqlExec("DROP TABLE users")
-                print("  ✅ Dropped old table")
-            except Exception as e:
-                print(f"  ⚠️  Could not drop table: {e}")
-            
-            # Create new table with all columns
-            client.sqlExec("""
-                CREATE TABLE users (
-                    id INTEGER AUTO_INCREMENT,
-                    username VARCHAR,
-                    hashed_password VARCHAR,
-                    role VARCHAR,
-                    name VARCHAR,
-                    active BOOLEAN,
-                    first_name VARCHAR,
-                    middle_name VARCHAR,
-                    last_name VARCHAR,
-                    contact_info VARCHAR,
-                    gender VARCHAR,
-                    PRIMARY KEY id
-                )
-            """)
-            print("  ✅ Recreated users table with all columns")
+            # Core columns missing - would need full recreate (strand/payment_plan already handled above)
+            pass
 
 
 def reset_users():
@@ -205,18 +214,22 @@ def reset_users():
                 def escape_sql(s):
                     return str(s).replace("'", "''") if s else ""
                 
+                strand_val = escape_sql(user.get("strand", "") or "")
+                payment_plan_val = escape_sql(user.get("payment_plan", "") or "")
                 query = f"""
                     INSERT INTO users (
-                        username, 
-                        hashed_password, 
-                        role, 
+                        username,
+                        hashed_password,
+                        role,
                         name,
                         first_name,
                         middle_name,
                         last_name,
                         contact_info,
                         gender,
-                        active
+                        active,
+                        strand,
+                        payment_plan
                     )
                     VALUES (
                         '{escape_sql(user["username"])}',
@@ -228,10 +241,28 @@ def reset_users():
                         '{escape_sql(user["last_name"])}',
                         '{escape_sql(user["contact_info"])}',
                         '{escape_sql(user["gender"])}',
-                        true
+                        true,
+                        '{strand_val}',
+                        '{payment_plan_val}'
                     )
                 """
-                client.sqlExec(query)
+                try:
+                    client.sqlExec(query)
+                except Exception:
+                    # Fallback if strand/payment_plan columns don't exist yet
+                    query_fb = f"""
+                        INSERT INTO users (
+                            username, hashed_password, role, name,
+                            first_name, middle_name, last_name, contact_info, gender, active
+                        )
+                        VALUES (
+                            '{escape_sql(user["username"])}', '{escape_sql(hashed_password)}',
+                            '{escape_sql(user["role"])}', '{escape_sql(name)}',
+                            '{escape_sql(user["first_name"])}', NULL, '{escape_sql(user["last_name"])}',
+                            '{escape_sql(user["contact_info"])}', '{escape_sql(user["gender"])}', true
+                        )
+                    """
+                    client.sqlExec(query_fb)
                 print(f"  ✅ Created: {user['username']} ({user['role']})")
             except Exception as e:
                 print(f"  ❌ Failed to create {user['username']}: {e}")

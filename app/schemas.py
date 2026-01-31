@@ -16,6 +16,10 @@ class LoginResponse(BaseModel):
     message: str
 
 
+# Payment plans: Plan A = yearly, Plan B = semestral, Plan C = monthly
+PAYMENT_PLAN_CHOICES = ["plan_a", "plan_b", "plan_c"]
+
+
 class UserBase(BaseModel):
     username: str
     role: str
@@ -27,6 +31,7 @@ class UserBase(BaseModel):
     contact_info: str | None = None
     gender: str | None = None
     strand: str | None = None
+    payment_plan: str | None = None
 
 
 class UserCreate(UserBase):
@@ -43,6 +48,7 @@ class UserUpdate(BaseModel):
     last_name: str | None = None
     contact_info: str | None = None
     gender: str | None = None
+    payment_plan: str | None = None
 
 
 class UserProfileUpdate(BaseModel):
@@ -51,6 +57,7 @@ class UserProfileUpdate(BaseModel):
     last_name: str | None = None
     contact_info: str | None = None
     gender: str | None = None
+    payment_plan: str | None = None
 
 
 class PasswordChange(BaseModel):

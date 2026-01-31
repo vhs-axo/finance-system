@@ -555,6 +555,11 @@
         // CONFIG
         const API_URL = ""; // Relative path as served from same origin
 
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
         // STATE
         let currentUser = null;
         const ROLES = {
@@ -587,17 +592,17 @@
                 const data = await res.json();
 
                 if (data.success) {
-                    initSession(u, data.role, data.name || u, data.first_name, data.last_name);
+                    initSession(u, data.role, data.name || u, data.first_name, data.last_name, data.strand, data.payment_plan);
                 } else {
                     showToast(data.message || "Login Failed", true);
                 }
             } catch (err) { showToast("Connection Error", true); }
         });
 
-        function guestLogin() { initSession("guest", "guest", "Guest Visitor", null, null); }
+        function guestLogin() { initSession("guest", "guest", "Guest Visitor", null, null, null, null); }
 
-        function initSession(user, role, name, first_name, last_name) {
-            currentUser = { username: user, role: role, name: name, first_name: first_name, last_name: last_name };
+        function initSession(user, role, name, first_name, last_name, strand, payment_plan) {
+            currentUser = { username: user, role: role, name: name, first_name: first_name || null, last_name: last_name || null, strand: strand || null, payment_plan: payment_plan || null };
             localStorage.setItem('user', JSON.stringify(currentUser));
             updateUIState();
         }
@@ -2086,8 +2091,15 @@
                         <label>Total Amount (PHP)</label>
                         <input type="number" id="bill-amount" step="0.01" min="0" placeholder="0.00" required>
                         <label>Student IDs (comma-separated)</label>
-                        <textarea id="bill-students" placeholder="STU001, STU002, STU003" required style="min-height: 100px;"></textarea>
-                        <p style="color: var(--muted); font-size: 0.85rem; margin-top: -10px;">Enter student IDs separated by commas. The total amount will be divided equally among all students.</p>
+                        <textarea id="bill-students" placeholder="STU001, STU002, STU003" required style="min-height: 80px;"></textarea>
+                        <p style="color: var(--muted); font-size: 0.85rem; margin-top: -10px;">Enter student IDs (usernames) separated by commas, or load students below by payment plan and add selected.</p>
+                        <div class="module-card" style="margin-top: 16px; padding: 12px;">
+                            <h4 style="margin: 0 0 8px 0;">Students by payment plan</h4>
+                            <p style="color: var(--muted); font-size: 0.85rem; margin-bottom: 10px;">Load students to see their chosen plan (Plan A = Yearly, Plan B = Semestral, Plan C = Monthly). Select and add to bill.</p>
+                            <button type="button" class="btn btn-outline" onclick="loadStudentsForBill()" style="margin-bottom: 10px;">Load students</button>
+                            <div id="bill-students-list" style="max-height: 200px; overflow-y: auto;"></div>
+                            <button type="button" class="btn btn-outline" onclick="addSelectedStudentsToBill()" style="margin-top: 10px;">Add selected to bill</button>
+                        </div>
                         <div style="display: flex; gap: 10px; margin-top: 20px;">
                             <button type="submit" class="btn" style="flex: 1;">Create Bill</button>
                             <button type="button" class="btn btn-outline" onclick="closeCreateBillModal()" style="flex: 1;">Cancel</button>
@@ -2101,6 +2113,53 @@
         function closeCreateBillModal() {
             const modal = document.getElementById('create-bill-modal');
             if (modal) modal.remove();
+        }
+
+        let __billStudentsList = [];
+
+        async function loadStudentsForBill() {
+            const listDiv = document.getElementById('bill-students-list');
+            if (!listDiv) return;
+            listDiv.innerHTML = 'Loading...';
+            try {
+                const res = await fetch(`${API_URL}/users`);
+                const users = await res.json();
+                const students = (users || []).filter(u => u.role === 'student');
+                __billStudentsList = students;
+                const planLabel = (p) => { const l = { plan_a: 'Plan A (Yearly)', plan_b: 'Plan B (Semestral)', plan_c: 'Plan C (Monthly)' }; return l[p] || (p || '—'); };
+                if (students.length === 0) {
+                    listDiv.innerHTML = '<p style="color: var(--muted);">No student accounts found.</p>';
+                    return;
+                }
+                listDiv.innerHTML = `
+                    <table style="width:100%; font-size: 0.9rem;">
+                        <thead><tr><th>Select</th><th>Student ID</th><th>Name</th><th>Strand</th><th>Payment plan</th></tr></thead>
+                        <tbody>
+                            ${students.map(s => `
+                                <tr>
+                                    <td><input type="checkbox" class="bill-student-cb" data-username="${(s.username || '').replace(/"/g, '&quot;')}" /></td>
+                                    <td>${escapeHtml(s.username || '—')}</td>
+                                    <td>${escapeHtml(s.name || [s.first_name, s.last_name].filter(Boolean).join(' ') || '—')}</td>
+                                    <td>${escapeHtml(s.strand || '—')}</td>
+                                    <td>${planLabel(s.payment_plan)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch(e) {
+                listDiv.innerHTML = '<p style="color: var(--danger);">Failed to load students.</p>';
+            }
+        }
+
+        function addSelectedStudentsToBill() {
+            const textarea = document.getElementById('bill-students');
+            if (!textarea) return;
+            const checked = document.querySelectorAll('#bill-students-list .bill-student-cb:checked');
+            const ids = Array.from(checked).map(cb => cb.getAttribute('data-username')).filter(Boolean);
+            const current = (textarea.value || '').split(',').map(s => s.trim()).filter(Boolean);
+            const combined = [...new Set([...current, ...ids])];
+            textarea.value = combined.join(', ');
         }
 
         async function createBill() {
@@ -2164,17 +2223,13 @@
                 </div>
                 <hr style="margin: 15px 0; border: 0; border-top: 1px solid #ddd;">
                 <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
-                    <div class="module-card" style="display: flex; flex-direction: column;">
+                    <div class="module-card">
                         <h3 style="margin-bottom: 20px;">Tuition Allocation Breakdown</h3>
                         <canvas id="allocations-pie-chart" height="250"></canvas>
-                        <div style="margin-top: 20px; text-align: center;">
-                            <div style="color: var(--muted); font-size: 0.9rem; margin-bottom: 5px;">Total Tuition Fee</div>
-                            <div id="pie-total-tuition" style="color: var(--primary-green); font-size: 1.8rem; font-weight: 700;">₱0</div>
-                        </div>
                     </div>
-                    <div class="module-card" style="display: flex; flex-direction: column;">
+                    <div class="module-card">
                         <h3 style="margin-bottom: 20px;">Itemized Breakdown</h3>
-                        <div id="allocations-breakdown" style="flex: 1; overflow-y: auto; min-height: 300px;">Loading...</div>
+                        <div id="allocations-breakdown" style="max-height: 400px; overflow-y: auto;">Loading...</div>
                     </div>
                 </div>
                 <div class="module-card" style="border: 2px solid var(--primary-green); padding: 20px;">
@@ -2219,15 +2274,9 @@
                 document.getElementById('total-items').innerText = totalItems;
                 document.getElementById('total-tuition').innerText = `₱${totalTuition.toLocaleString()}`;
                 document.getElementById('per-term').innerText = `₱${perTerm.toLocaleString()}`;
-                
-                // Update pie chart total tuition
-                const pieTotalElement = document.getElementById('pie-total-tuition');
-                if (pieTotalElement) {
-                    pieTotalElement.innerText = `₱${totalTuition.toLocaleString()}`;
-                }
 
                 // Render pie chart
-                const canvas = document.getElementById('allocations-pie-chart');
+                const chartContainer = document.getElementById('allocations-pie-chart').parentElement;
                 if (items.length > 0) {
                     const labels = items.map(i => i.name);
                     const amounts = items.map(i => i.amount);
@@ -2238,16 +2287,9 @@
                         window.__allocationsChart = null;
                     }
                     
-                    // Ensure canvas exists
+                    const canvas = document.getElementById('allocations-pie-chart');
                     if (!canvas) {
-                        const chartContainer = document.getElementById('allocations-pie-chart')?.parentElement;
-                        if (chartContainer) {
-                            const totalSection = chartContainer.querySelector('div[style*="margin-top: 20px"]');
-                            const newCanvas = document.createElement('canvas');
-                            newCanvas.id = 'allocations-pie-chart';
-                            newCanvas.height = 250;
-                            chartContainer.insertBefore(newCanvas, totalSection);
-                        }
+                        chartContainer.innerHTML = '<canvas id="allocations-pie-chart" height="250"></canvas>';
                     }
                     
                     window.__allocationsChart = new Chart(document.getElementById('allocations-pie-chart'), {
@@ -2269,17 +2311,7 @@
                         window.__allocationsChart.destroy();
                         window.__allocationsChart = null;
                     }
-                    // Replace only the canvas, preserve the total tuition fee section
-                    if (canvas) {
-                        const noDataMsg = document.createElement('p');
-                        noDataMsg.style.cssText = 'text-align: center; color: var(--muted); padding: 40px;';
-                        noDataMsg.textContent = 'No allocation data available';
-                        canvas.replaceWith(noDataMsg);
-                    }
-                    const pieTotalElement = document.getElementById('pie-total-tuition');
-                    if (pieTotalElement) {
-                        pieTotalElement.innerText = '₱0';
-                    }
+                    chartContainer.innerHTML = '<p style="text-align: center; color: var(--muted); padding: 40px;">No allocation data available</p>';
                 }
 
                 // Render itemized breakdown
@@ -2570,6 +2602,19 @@
             
             resDiv.innerHTML = "Loading your financial profile...";
             try {
+                const profileRes = await fetch(`${API_URL}/profile`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ username: currentUser?.username || studentId })
+                }).catch(() => null);
+                const profile = profileRes && profileRes.ok ? await profileRes.json() : {};
+                const lastName = profile.last_name || currentUser?.last_name || '—';
+                const firstName = profile.first_name || currentUser?.first_name || '—';
+                const middleName = profile.middle_name || '';
+                const middleInitial = middleName ? middleName.trim().charAt(0).toUpperCase() + '.' : '—';
+                const strand = profile.strand || currentUser?.strand || '—';
+                let paymentPlan = profile.payment_plan || currentUser?.payment_plan || '';
+
                 const [txnRes, billsRes] = await Promise.all([
                     fetch(`${API_URL}/transactions?student_id=${studentId}`),
                     fetch(`${API_URL}/bills/student/${studentId}`).catch(() => null)
@@ -2584,7 +2629,6 @@
                     return acc;
                 }, {assessed:0, paid:0});
                 
-                // Calculate bill totals
                 let billTotal = 0;
                 let billPaid = 0;
                 bills.forEach(b => {
@@ -2592,8 +2636,6 @@
                     billPaid += b.paid_amount;
                 });
                 const billRemaining = billTotal - billPaid;
-                
-                // Combine transaction and bill outstanding
                 const outstanding = Math.max(totals.assessed - totals.paid, 0) + billRemaining;
 
                 const monthMap = {};
@@ -2611,10 +2653,25 @@
                         <h3>Student Academic Information</h3>
                         <div class="grid" style="grid-template-columns: repeat(auto-fit,minmax(160px,1fr)); gap: 10px; margin-top: 10px;">
                             <div><div class="pill">Student ID</div><div>${studentId || '—'}</div></div>
-                            <div><div class="pill">Name</div><div>${currentUser ? (currentUser.name || currentUser.first_name + ' ' + currentUser.last_name) : '—'}</div></div>
-                            <div><div class="pill">Grade Level</div><div>Senior High School</div></div>
-                            <div><div class="pill">Section</div><div>-</div></div>
+                            <div><div class="pill">Last Name</div><div>${lastName}</div></div>
+                            <div><div class="pill">First Name</div><div>${firstName}</div></div>
+                            <div><div class="pill">Middle Initial</div><div>${middleInitial}</div></div>
+                            <div><div class="pill">Strand</div><div>${strand}</div></div>
                         </div>
+                    </div>
+                    <div class="module-card">
+                        <h3>Applicable Payment Plan</h3>
+                        <p style="color: var(--muted); margin-bottom: 10px;">Plan A = Yearly · Plan B = Semestral · Plan C = Monthly</p>
+                        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                            <select id="student-payment-plan" class="pill" style="padding: 8px 12px; min-width: 220px;">
+                                <option value="">Not set</option>
+                                <option value="plan_a" ${paymentPlan === 'plan_a' ? 'selected' : ''}>Plan A — Yearly payment</option>
+                                <option value="plan_b" ${paymentPlan === 'plan_b' ? 'selected' : ''}>Plan B — Semestral payment</option>
+                                <option value="plan_c" ${paymentPlan === 'plan_c' ? 'selected' : ''}>Plan C — Monthly payment</option>
+                            </select>
+                            <button type="button" class="btn" onclick="saveStudentPaymentPlan()">Save plan</button>
+                        </div>
+                        <p id="payment-plan-msg" style="margin-top: 8px; font-size: 0.9rem;"></p>
                     </div>
                     <div class="module-card">
                         <div class="split-header">
@@ -2629,38 +2686,27 @@
                         </table>
                     </div>
                     <div class="module-card">
-                        <h3>Bill Balances</h3>
+                        <h3>Bill Summary</h3>
                         ${bills.length > 0 ? `
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Bill Assignment</th>
-                                    <th>Total Amount</th>
-                                    <th>Paid</th>
-                                    <th>Remaining</th>
-                                    <th>Status</th>
+                                    <th>Bill type</th>
+                                    <th>Balance Due</th>
+                                    <th>Amount Paid</th>
+                                    <th>Remaining Balance</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 ${bills.map(b => {
                                     const remaining = b.amount - b.paid_amount;
-                                    let statusText = 'Unpaid';
-                                    let statusClass = 'status-pending';
-                                    if (b.status === 'Paid' || remaining === 0) {
-                                        statusText = 'Fully Paid';
-                                        statusClass = 'status-approved';
-                                    } else if (b.paid_amount > 0) {
-                                        statusText = 'Partially Paid';
-                                        statusClass = 'status-pending';
-                                    }
                                     const billTypeDisplay = b.bill_type || 'Bill';
                                     return `
                                         <tr>
-                                            <td><strong>${billTypeDisplay}</strong> (Assignment #${b.id})</td>
+                                            <td><strong>${billTypeDisplay}</strong></td>
                                             <td>₱${b.amount.toLocaleString()}</td>
                                             <td>₱${b.paid_amount.toLocaleString()}</td>
                                             <td style="color: ${remaining === 0 ? 'var(--primary-green)' : 'var(--danger)'}; font-weight: 600;">₱${remaining.toLocaleString()}</td>
-                                            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
                                         </tr>
                                     `;
                                 }).join('')}
@@ -2670,13 +2716,10 @@
                     </div>
                     <div class="module-card">
                         <div class="split-header">
-                            <h3>Outstanding Balance Summary</h3>
-                            <span class="pill">Assessed vs Paid</span>
+                            <h3>Outstanding balance</h3>
                         </div>
                         <div class="grid" style="grid-template-columns: repeat(auto-fit,minmax(160px,1fr)); gap: 12px;">
-                            <div class="calendar-cell"><div class="pill">Total Assessed</div><h3>₱${totals.assessed.toLocaleString()}</h3></div>
-                            <div class="calendar-cell"><div class="pill">Total Paid</div><h3>₱${totals.paid.toLocaleString()}</h3></div>
-                            <div class="calendar-cell"><div class="pill">Remaining</div><h3 style="color:${outstanding===0?'var(--primary-green)':'var(--danger)'};">₱${outstanding.toLocaleString()}</h3></div>
+                            <div class="calendar-cell"><div class="pill">Total remaining</div><h3 style="color:${outstanding===0?'var(--primary-green)':'var(--danger)'};">₱${outstanding.toLocaleString()}</h3></div>
                         </div>
                     </div>
                     <div class="module-card">
@@ -2699,6 +2742,29 @@
                 `;
                 drawStudentCalendar(data);
             } catch(e) { resDiv.innerHTML = "Error loading ledger."; }
+        }
+
+        async function saveStudentPaymentPlan() {
+            const sel = document.getElementById('student-payment-plan');
+            const msgEl = document.getElementById('payment-plan-msg');
+            if (!sel || !currentUser || currentUser.role !== 'student') return;
+            const plan = sel.value || '';
+            try {
+                const res = await fetch(`${API_URL}/profile`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ username: currentUser.username, profile: { payment_plan: plan } })
+                });
+                if (res.ok) {
+                    if (currentUser) currentUser.payment_plan = plan;
+                    if (msgEl) { msgEl.textContent = 'Payment plan saved.'; msgEl.style.color = 'var(--primary-green)'; }
+                } else {
+                    const err = await res.json().catch(() => ({}));
+                    if (msgEl) { msgEl.textContent = err.detail || 'Failed to save'; msgEl.style.color = 'var(--danger)'; }
+                }
+            } catch(e) {
+                if (msgEl) { msgEl.textContent = 'Error saving plan.'; msgEl.style.color = 'var(--danger)'; }
+            }
         }
 
         function drawStudentCalendar(list) {
@@ -2781,13 +2847,57 @@
             content.innerHTML = `
                 <div class="split-header">
                     <h1>User Management</h1>
-                    <button class="btn" onclick="openAddUserModal()">Add Account</button>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button class="btn" onclick="openAddUserModal()">Add Account</button>
+                        <label class="btn btn-outline" style="margin: 0; cursor: pointer;">
+                            Import students (Excel)
+                            <input type="file" id="import-excel-input" accept=".xlsx" style="display: none;" onchange="handleImportExcel(event)">
+                        </label>
+                    </div>
                 </div>
                 <hr style="margin: 15px 0; border: 0; border-top: 1px solid #ddd;">
+                <p style="color: var(--muted); font-size: 0.9rem; margin-bottom: 10px;">Excel import: columns <code>student_id</code> (username), <code>last_name</code>, <code>first_name</code>, <code>middle_name</code>, <code>gender</code>, <code>strand</code>, <code>contact_information</code>. First row = headers.</p>
                 <div id="user-list">Loading...</div>
             `;
 
             await loadUsers();
+        }
+
+        async function handleImportExcel(event) {
+            const input = event.target;
+            const file = input && input.files && input.files[0];
+            if (!file) return;
+            if (!file.name.toLowerCase().endsWith('.xlsx')) {
+                showToast('Please select an Excel file (.xlsx)', true);
+                input.value = '';
+                return;
+            }
+            const listDiv = document.getElementById('user-list');
+            const prevHtml = listDiv ? listDiv.innerHTML : '';
+            if (listDiv) listDiv.innerHTML = 'Importing students...';
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                const res = await fetch(`${API_URL}/users/import-students`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data.success) {
+                    let msg = `Created ${data.created} student(s).`;
+                    if (data.skipped_usernames && data.skipped_usernames.length) msg += ` Skipped ${data.skipped_usernames.length} existing.`;
+                    if (data.errors && data.errors.length) msg += ` ${data.errors.length} error(s).`;
+                    showToast(msg);
+                    await loadUsers();
+                } else {
+                    showToast(data.detail || data.message || 'Import failed', true);
+                    if (listDiv) listDiv.innerHTML = prevHtml;
+                }
+            } catch (e) {
+                showToast('Import failed', true);
+                if (listDiv) listDiv.innerHTML = prevHtml;
+            }
+            input.value = '';
         }
 
         async function loadUsers() {
@@ -2913,6 +3023,8 @@
             }
         }
 
+        const STUDENT_STRANDS = ['ABM', 'HUMSS', 'STEM'];
+
         function openAddUserModal() {
             const modal = document.createElement('div');
             modal.className = 'modal-overlay';
@@ -2928,10 +3040,18 @@
                         <input type="text" id="u-user" placeholder="Username" required>
                         <label>Password</label>
                         <input type="password" id="u-pass" placeholder="Password" required>
+                        <p id="u-pass-hint" style="display: none; color: var(--muted); font-size: 0.85rem; margin: -8px 0 8px 0;">Password will be set to <strong>123</strong> for students.</p>
                         <label>Role</label>
                         <select id="u-role">
                             ${Object.keys(ROLES).map(r => `<option value="${r}">${ROLES[r]}</option>`).join('')}
                         </select>
+                        <div id="u-strand-wrap" style="display: none;">
+                            <label>Strand (for students)</label>
+                            <select id="u-strand">
+                                <option value="">Select strand</option>
+                                ${STUDENT_STRANDS.map(s => `<option value="${s}">${s}</option>`).join('')}
+                            </select>
+                        </div>
                         <label>First Name</label>
                         <input type="text" id="u-first-name" placeholder="First Name" required>
                         <label>Middle Name</label>
@@ -2955,14 +3075,26 @@
                 </div>
             `;
             document.body.appendChild(modal);
+
+            const roleSelect = document.getElementById('u-role');
+            const strandWrap = document.getElementById('u-strand-wrap');
+            const passHint = document.getElementById('u-pass-hint');
+            function toggleStrand() {
+                const isStudent = roleSelect && roleSelect.value === 'student';
+                if (strandWrap) strandWrap.style.display = isStudent ? 'block' : 'none';
+                if (passHint) passHint.style.display = isStudent ? 'block' : 'none';
+            }
+            if (roleSelect) roleSelect.addEventListener('change', toggleStrand);
+            toggleStrand();
             
             document.getElementById('user-form').onsubmit = async (e) => {
                 e.preventDefault();
                 try {
+                    const role = document.getElementById('u-role').value;
                     const payload = {
                         username: document.getElementById('u-user').value,
                         password: document.getElementById('u-pass').value,
-                        role: document.getElementById('u-role').value,
+                        role: role,
                         name: `${document.getElementById('u-first-name').value} ${document.getElementById('u-last-name').value}`,
                         first_name: document.getElementById('u-first-name').value,
                         middle_name: document.getElementById('u-middle-name').value || null,
@@ -2971,6 +3103,10 @@
                         gender: document.getElementById('u-gender').value || null,
                         active: true
                     };
+                    if (role === 'student') {
+                        const strandEl = document.getElementById('u-strand');
+                        payload.strand = strandEl ? strandEl.value || null : null;
+                    }
                     const res = await fetch(`${API_URL}/users`, {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
