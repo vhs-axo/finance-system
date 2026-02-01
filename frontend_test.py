@@ -19,15 +19,22 @@ BG_LIGHT = "#F9FAFB"       # Very light gray for background
 TEXT_DARK = "#1F2937"      # Dark charcoal for text
 WHITE = "#FFFFFF"
 
+# Role = actual role (admin, payables, student, staff, etc.) - each has its own table
 ROLES = {
     "admin": "Admin / Principal",
-    "staff": "Finance Staff",
-    "officer": "Finance Officer",
-    "auditor": "Auditor",
+    "staff": "Staff",
+    "payables": "Payables Associate",
+    "bookkeeper": "Bookkeeper",
+    "procurement": "Procurement",
+    "vp_finance": "VP Finance",
+    "president": "President",
+    "dept_head": "Department Head",
     "it": "System Administrator",
     "student": "Student",
-    "guest": "Guest"
+    "guest": "Guest",
 }
+USER_ROLES = ["student", "staff", "admin", "payables", "bookkeeper", "vp_finance", "president", "procurement", "dept_head", "it"]
+ROLE_TABLES_UI = ["admin", "payables", "bookkeeper", "vp_finance", "president", "procurement", "dept_head", "it"]
 
 STRANDS = ["ABM", "STEM", "HUMSS", "General"]
 CATEGORIES = {
@@ -223,7 +230,9 @@ def login_page():
                     data = res.json()
                     if data.get("success"):
                         st.session_state["logged_in"] = True
-                        st.session_state["role"] = data.get("role")
+                        # Role: normalize to lowercase so sidebar/menu logic works (student, staff, admin, etc.)
+                        raw_role = data.get("role")
+                        st.session_state["role"] = (raw_role.strip().lower() if isinstance(raw_role, str) else raw_role) or "guest"
                         st.session_state["username"] = username
                         st.session_state["name"] = data.get("name")
                         st.success(f"Welcome back, {data.get('name')}!")
@@ -533,13 +542,54 @@ def audit_trail_page():
 
 def student_ledger_page():
     st.title("📖 My Ledger")
-    st.markdown("Check your personal transaction history.")
+    st.markdown("Your personal transaction history.")
     st.markdown("---")
-    
-    col1, col2 = st.columns([1, 2])
-    with col1:
-        sid = st.text_input("Enter Student ID:", placeholder="e.g., 2023-0001")
-    
+
+    role = (st.session_state.get("role") or "").strip()
+    username = st.session_state.get("username")
+    is_student = role.lower() == "student"
+
+    if is_student and username:
+        # Student sees only their own transactions (no search, no tabs)
+        st.subheader("Transactions")
+        st.caption(f"Your transaction history as **{username}**.")
+        try:
+            res = requests.get(f"{API_URL}/transactions?student_id={username}&limit=500")
+            if res.status_code == 200:
+                data = res.json()
+                if data:
+                    # Build display: Date, TransactionID, Bill/Category, Description, Amount
+                    rows = []
+                    for t in data:
+                        tc, ty = t.get("category") or "", t.get("txn_type") or ""
+                        bill_cat = f"{ty} / {tc}" if (ty and tc) else (tc or ty)
+                        rows.append({
+                            "Date": t.get("created_at") or "",
+                            "TransactionID": t.get("id"),
+                            "Bill/Category": bill_cat,
+                            "Description": t.get("description") or "",
+                            "Amount": t.get("amount"),
+                        })
+                    df = pd.DataFrame(rows)
+                    st.dataframe(df, use_container_width=True, hide_index=True)
+                    st.download_button(
+                        label="📥 Download My Transactions",
+                        data=convert_df_to_excel(df),
+                        file_name="my_transactions.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True,
+                    )
+                else:
+                    st.info("No transactions found for your account.")
+            else:
+                st.error("Could not load transactions.")
+        except Exception as e:
+            st.error(f"Error: {e}")
+        return
+
+    # Guest or other: search by Student ID
+    st.subheader("Search by Student ID")
+    sid = st.text_input("Enter Student ID:", placeholder="e.g., 2023-0001")
     if sid:
         try:
             res = requests.get(f"{API_URL}/transactions?student_id={sid}")
@@ -548,13 +598,88 @@ def student_ledger_page():
                 if data:
                     df = pd.DataFrame(data)
                     st.success(f"Found {len(data)} records.")
-                    st.table(df[["created_at", "category", "description", "amount", "status"]])
+                    st.dataframe(df[["created_at", "category", "description", "amount", "status"]], use_container_width=True, hide_index=True)
                 else:
                     st.warning("No records found for this Student ID.")
             else:
                 st.error("Search failed.")
         except Exception as e:
             st.error(f"Error: {e}")
+
+
+def transactions_browse_page():
+    """Payables / bookkeeper / admin: view all transactions and search by student_id."""
+    st.title("📋 All Transactions")
+    st.markdown("View all transactions and filter by Student ID.")
+    st.markdown("---")
+
+    search_sid = st.text_input("Search by Student ID (leave empty for all)", placeholder="e.g., student@gmail.com")
+    try:
+        if search_sid:
+            res = requests.get(f"{API_URL}/transactions?student_id={search_sid}&limit=500")
+            st.caption(f"Showing transactions for Student ID: **{search_sid}**")
+        else:
+            res = requests.get(f"{API_URL}/transactions?limit=500")
+            st.caption("Showing all transactions")
+        if res.status_code == 200:
+            data = res.json()
+            if data:
+                df = pd.DataFrame(data)
+                cols = ["id", "created_at", "recorded_by", "txn_type", "category", "description", "amount", "status", "student_id"]
+                cols = [c for c in cols if c in df.columns]
+                st.dataframe(df[cols], use_container_width=True, hide_index=True)
+                st.download_button(
+                    label="📥 Download",
+                    data=convert_df_to_excel(df),
+                    file_name="transactions.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                )
+            else:
+                st.info("No transactions found.")
+        else:
+            st.error("Could not load transactions.")
+    except Exception as e:
+        st.error(f"Error: {e}")
+
+
+def staff_profile_page():
+    """Staff: view own profile – Last, First, Middle name, Teaching position, Position level, Date hired, Employment status, Monthly salary."""
+    st.title("👤 My Profile")
+    st.markdown("Your employment and profile details.")
+    st.markdown("---")
+
+    username = st.session_state.get("username")
+    if not username:
+        st.warning("Not logged in.")
+        return
+    try:
+        res = requests.post(f"{API_URL}/profile", json={"username": username})
+        if res.status_code != 200:
+            st.error("Could not load profile.")
+            return
+        p = res.json()
+        if p.get("role") != "staff":
+            st.info("This page is for staff. Your role: " + str(p.get("role", "unknown")))
+            return
+
+        st.subheader("Name")
+        st.markdown(f"**Last name:** {p.get('last_name') or '—'}")
+        st.markdown(f"**First name:** {p.get('first_name') or '—'}")
+        st.markdown(f"**Middle name:** {p.get('middle_name') or '—'}")
+
+        st.subheader("Employment")
+        st.markdown(f"**Position:** {p.get('position') or '—'}")
+        st.markdown(f"**Department:** {p.get('department') or '—'}")
+        st.markdown(f"**Date hired:** {p.get('date_hired') or '—'}")
+        st.markdown(f"**Employment status:** {p.get('status') or '—'}")
+        sal = p.get("monthly_salary")
+        if sal is not None:
+            st.markdown(f"**Monthly basic salary:** ₱{sal:,.2f}")
+        else:
+            st.markdown("**Monthly basic salary:** —")
+    except Exception as e:
+        st.error(f"Error: {e}")
 
 
 def verification_page():
@@ -615,11 +740,11 @@ def settings_page():
 
 def user_management_page():
     st.title("👥 User Management")
-    st.markdown("Manage system access and roles.")
+    st.markdown("Manage system access and roles (student, staff, admin, payables, etc.).")
     st.markdown("---")
-    
+
     col1, col2 = st.columns([2, 1])
-    
+
     with col1:
         st.subheader("System Users")
         try:
@@ -628,8 +753,12 @@ def user_management_page():
                 users = res.json()
                 if users:
                     df = pd.DataFrame(users)
-                    st.dataframe(df[['username', 'name', 'role', 'active']], use_container_width=True)
-        except:
+                    all_cols = ["username", "name", "role", "active", "strand", "section", "payment_plan"]
+                    cols = [c for c in all_cols if c in df.columns]
+                    st.dataframe(df[cols], use_container_width=True)
+                else:
+                    st.info("No users yet.")
+        except Exception as e:
             st.error("Could not fetch users.")
 
     with col2:
@@ -637,14 +766,52 @@ def user_management_page():
         with st.form("new_user"):
             new_user = st.text_input("Username")
             new_pass = st.text_input("Password", type="password")
-            new_name = st.text_input("Full Name")
-            new_role = st.selectbox("Role", list(ROLES.keys()))
-            
+            new_role = st.selectbox("Role", USER_ROLES)
+            first_name = st.text_input("First Name")
+            last_name = st.text_input("Last Name")
+            middle_name = st.text_input("Middle Name (optional)", value="")
+            gender = st.text_input("Gender (optional)", value="")
+            contact_info = st.text_input("Contact Information (optional)", value="") if new_role in ROLE_TABLES_UI else None
+            if new_role == "student":
+                strand = st.text_input("Strand (optional)", value="")
+                section = st.text_input("Section (optional)", value="")
+                payment_plan = st.selectbox("Payment Plan", ["plan_a", "plan_b", "plan_c"])
+            else:
+                strand = section = payment_plan = None
+            if new_role == "staff":
+                position = st.text_input("Position", value="")
+                department = st.text_input("Department", value="")
+                date_hired = st.text_input("Date Hired (optional)", value="")
+                status = st.text_input("Employment Status (optional)", value="")
+                monthly_salary = st.number_input("Monthly Basic Salary", min_value=0, value=0, step=1000)
+            else:
+                position = department = date_hired = status = monthly_salary = None
+
             if st.form_submit_button("Create User", use_container_width=True):
+                name = f"{first_name} {last_name}".strip() or new_user
                 payload = {
-                    "username": new_user, "password": new_pass,
-                    "name": new_name, "role": new_role, "active": True
+                    "username": new_user,
+                    "password": new_pass,
+                    "role": new_role,
+                    "name": name,
+                    "active": True,
+                    "first_name": first_name or None,
+                    "middle_name": middle_name or None,
+                    "last_name": last_name or None,
+                    "gender": gender or None,
                 }
+                if new_role in ROLE_TABLES_UI:
+                    payload["contact_info"] = contact_info or ""
+                if new_role == "student":
+                    payload["strand"] = strand or ""
+                    payload["section"] = section or ""
+                    payload["payment_plan"] = payment_plan or "plan_a"
+                if new_role == "staff":
+                    payload["position"] = position or ""
+                    payload["department"] = department or ""
+                    payload["date_hired"] = date_hired or ""
+                    payload["status"] = status or ""
+                    payload["monthly_salary"] = monthly_salary
                 try:
                     res = requests.post(f"{API_URL}/users", json=payload)
                     if res.status_code == 200:
@@ -653,7 +820,7 @@ def user_management_page():
                         st.rerun()
                     else:
                         st.error(f"Failed: {res.text}")
-                except:
+                except Exception as e:
                     st.error("Connection failed.")
 
 
@@ -676,39 +843,54 @@ def main():
     if not st.session_state["logged_in"]:
         login_page()
     else:
-        role = st.session_state.get("role")
-        
+        # Role is the actual role from API (admin, payables, student, staff, etc.)
+        effective_role = st.session_state.get("role") or "guest"
+
         # Sidebar with custom styling
         st.sidebar.markdown(f"<div style='text-align: center; color: {PRIMARY_GREEN}; font-family: serif; font-size: 1.2rem; font-weight: bold;'>La Salle Academy</div>", unsafe_allow_html=True)
         st.sidebar.markdown("---")
         st.sidebar.markdown(f"👤 **{st.session_state.get('name', 'User')}**")
-        st.sidebar.caption(f"Role: {ROLES.get(role, role)}")
+        st.sidebar.caption(f"Role: {ROLES.get(effective_role, effective_role)}")
         st.sidebar.markdown("---")
 
         options = []
-        if role == "guest":
+        is_student = (effective_role or "").strip().lower() == "student"
+        if effective_role == "guest":
             options.append("Transparency Board")
             options.append("My Ledger")
-        elif role != "guest":
+        else:
             options.append("Dashboard")
+            # Students: My Ledger (their own transactions) – must appear in sidebar
+            if is_student:
+                options.append("My Ledger")
+            # Staff: My Profile (employment details)
+            if effective_role == "staff":
+                options.append("My Profile")
 
-        if role not in ["student", "guest"]:
+        # Payables / bookkeeper / admin: view all transactions and search by student_id
+        if effective_role in ["payables", "bookkeeper", "admin"]:
+            options.append("Transactions")
+
+        # Audit Trail: everyone except student and guest
+        if effective_role not in ["student", "guest"]:
             options.append("Audit Trail")
 
-        # Only staff/admins add transactions
-        if role in ["staff", "admin", "officer"]:
+        # New Transaction: payables, bookkeeper, procurement, admin, staff (same as backend)
+        if effective_role in ["staff", "admin", "payables", "bookkeeper", "procurement"]:
             options.insert(1, "New Transaction")
 
-        if role == "admin":
+        # Pending Approvals: admin, vp_finance (endorse), president (approve)
+        if effective_role in ["admin", "vp_finance", "president"]:
             options.append("Pending Approvals")
 
-        if role == "it":
+        # User Management: it, admin
+        if effective_role in ["it", "admin"]:
             options.append("User Management")
 
         # Common Tools
         options.append("Verification")
 
-        if role != "guest":
+        if effective_role != "guest":
             options.append("Settings")
 
         options.append("Logout")
@@ -721,6 +903,10 @@ def main():
             dashboard_page()
         elif choice == "My Ledger":
             student_ledger_page()
+        elif choice == "Transactions":
+            transactions_browse_page()
+        elif choice == "My Profile":
+            staff_profile_page()
         elif choice == "New Transaction":
             transaction_entry_page()
         elif choice == "Pending Approvals":

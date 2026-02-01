@@ -3,7 +3,7 @@ from typing import List
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from ..database import get_db_client
+from ..database import get_db_client, ROLE_TABLES
 from ..schemas import (
     LoginRequest,
     LoginResponse,
@@ -17,98 +17,159 @@ from ..utils import get_password_hash, verify_password
 router = APIRouter(tags=["Authentication & Users"])
 
 
+def _esc(s: str) -> str:
+    return (s or "").replace("'", "''")
+
+
+def _name_from_parts(first_name: str | None, middle_name: str | None, last_name: str | None) -> str:
+    parts = [p for p in (first_name, middle_name, last_name) if p and str(p).strip()]
+    return " ".join(parts).strip() if parts else ""
+
+
 @router.post("/login", response_model=LoginResponse)
 def login(creds: LoginRequest):
     client = get_db_client()
     try:
-        # Secure query parameter binding is recommended in prod, f-string used for demo
-        try:
-            query = f"SELECT hashed_password, role, name, active, first_name, last_name, strand, payment_plan FROM users WHERE username = '{creds.username}'"
-            result = client.sqlQuery(query)
-        except Exception:
-            query = f"SELECT hashed_password, role, name, active, first_name, last_name FROM users WHERE username = '{creds.username}'"
-            result = client.sqlQuery(query)
-
+        result = client.sqlQuery(
+            f"SELECT hashed_password, role, active FROM users WHERE username = '{_esc(creds.username)}'"
+        )
         if not result:
             return {"success": False, "message": "User not found"}
 
-        stored_hash = result[0][0]
-        role = result[0][1]
-        name = result[0][2]
-        is_active = result[0][3]
-        first_name = result[0][4] if len(result[0]) > 4 else None
-        last_name = result[0][5] if len(result[0]) > 5 else None
-        strand = result[0][6] if len(result[0]) > 6 else None
-        payment_plan = result[0][7] if len(result[0]) > 7 else None
-
+        stored_hash, role, is_active = result[0][0], result[0][1], result[0][2]
         if not is_active:
             return {"success": False, "message": "Account is disabled"}
 
-        if verify_password(creds.password, stored_hash):
-            # Use first_name + last_name if available, otherwise fall back to name
-            display_name = name
-            if first_name and last_name:
-                display_name = f"{first_name} {last_name}"
-            elif first_name:
-                display_name = first_name
-            elif last_name:
-                display_name = last_name
-
-            return {
-                "success": True,
-                "role": role,
-                "name": display_name,
-                "first_name": first_name,
-                "last_name": last_name,
-                "strand": strand,
-                "payment_plan": payment_plan,
-                "message": "Login successful",
-            }
-        else:
+        if not verify_password(creds.password, stored_hash):
             return {"success": False, "message": "Invalid password"}
 
+        un = _esc(creds.username)
+        name = ""
+        first_name = last_name = strand = payment_plan = None
+
+        if role == "student":
+            row = client.sqlQuery(f"SELECT first_name, middle_name, last_name, gender, strand, payment_plan FROM students WHERE username = '{un}'")
+            if row:
+                r = row[0]
+                first_name = r[0] if len(r) > 0 else None
+                last_name = r[2] if len(r) > 2 else None
+                name = _name_from_parts(r[0], r[1] if len(r) > 1 else None, r[2] if len(r) > 2 else None)
+                strand = r[4] if len(r) > 4 else None
+                payment_plan = r[5] if len(r) > 5 else None
+        elif role == "staff":
+            row = client.sqlQuery(f"SELECT first_name, middle_name, last_name FROM staff WHERE username = '{un}'")
+            if row:
+                r = row[0]
+                first_name = r[0] if len(r) > 0 else None
+                last_name = r[2] if len(r) > 2 else None
+                name = _name_from_parts(r[0], r[1] if len(r) > 1 else None, r[2] if len(r) > 2 else None)
+        elif role in ROLE_TABLES:
+            row = client.sqlQuery(f"SELECT first_name, middle_name, last_name, gender, contact_information FROM {role} WHERE username = '{un}'")
+            if row:
+                r = row[0]
+                first_name = r[0] if len(r) > 0 else None
+                last_name = r[2] if len(r) > 2 else None
+                name = _name_from_parts(r[0], r[1] if len(r) > 1 else None, r[2] if len(r) > 2 else None)
+
+        if not name:
+            name = creds.username
+
+        return {
+            "success": True,
+            "role": role,
+            "name": name,
+            "first_name": first_name,
+            "last_name": last_name,
+            "strand": strand,
+            "payment_plan": payment_plan,
+            "message": "Login successful",
+        }
     except Exception as e:
         print(f"Login Error: {e}")
         return {"success": False, "message": "Login failed"}
 
 
-# --- USER MANAGEMENT (Missing Feature #1) ---
+# --- USER MANAGEMENT ---
+
+
+def _fetch_role_row(client, username: str, role: str):
+    un = _esc(username)
+    if role == "student":
+        r = client.sqlQuery(f"SELECT first_name, middle_name, last_name, gender, strand, section, payment_plan FROM students WHERE username = '{un}'")
+        if r:
+            row = r[0]
+            return {
+                "first_name": row[0], "middle_name": row[1], "last_name": row[2],
+                "gender": row[3] if len(row) > 3 else None,
+                "strand": row[4] if len(row) > 4 else None,
+                "section": row[5] if len(row) > 5 else None,
+                "payment_plan": row[6] if len(row) > 6 else None,
+                "contact_info": None, "gen_role": None,
+                "position": None, "department": None, "date_hired": None, "status": None, "monthly_salary": None,
+            }
+    elif role == "staff":
+        r = client.sqlQuery(f"SELECT first_name, middle_name, last_name, gender, position, department, date_hired, status, monthly_salary FROM staff WHERE username = '{un}'")
+        if r:
+            row = r[0]
+            return {
+                "first_name": row[0], "middle_name": row[1], "last_name": row[2],
+                "gender": row[3] if len(row) > 3 else None,
+                "position": row[4] if len(row) > 4 else None,
+                "department": row[5] if len(row) > 5 else None,
+                "date_hired": row[6] if len(row) > 6 else None,
+                "status": row[7] if len(row) > 7 else None,
+                "monthly_salary": row[8] if len(row) > 8 else None,
+                "strand": None, "section": None, "payment_plan": None,
+                "contact_info": None, "gen_role": None,
+            }
+    elif role in ROLE_TABLES:
+        r = client.sqlQuery(f"SELECT first_name, middle_name, last_name, gender, contact_information FROM {role} WHERE username = '{un}'")
+        if r:
+            row = r[0]
+            return {
+                "first_name": row[0], "middle_name": row[1], "last_name": row[2],
+                "gender": row[3] if len(row) > 3 else None,
+                "contact_info": row[4] if len(row) > 4 else None,
+                "strand": None, "section": None, "payment_plan": None,
+                "position": None, "department": None, "date_hired": None, "status": None, "monthly_salary": None,
+                "gen_role": None,
+            }
+    return None
 
 
 @router.get("/users", response_model=List[UserResponse])
 def get_users():
-    """List all users (For IT/Admin)."""
+    """List all users (users + role table data)."""
     client = get_db_client()
     try:
-        # Try to include strand and payment_plan if columns exist
-        try:
-            result = client.sqlQuery(
-                "SELECT username, role, name, active, first_name, middle_name, last_name, contact_info, gender, strand, payment_plan FROM users"
-            )
-        except Exception:
-            try:
-                result = client.sqlQuery(
-                    "SELECT username, role, name, active, first_name, middle_name, last_name, contact_info, gender, strand FROM users"
-                )
-            except Exception:
-                result = client.sqlQuery(
-                    "SELECT username, role, name, active, first_name, middle_name, last_name, contact_info, gender FROM users"
-                )
-        
+        result = client.sqlQuery("SELECT username, role, active FROM users")
         users = []
         for row in result:
+            username, role, active = row[0], row[1], row[2]
+            profile = _fetch_role_row(client, username, role)
+            if profile:
+                name = _name_from_parts(profile.get("first_name"), profile.get("middle_name"), profile.get("last_name")) or username
+            else:
+                name = username
             user_data = {
-                "username": row[0],
-                "role": row[1],
-                "name": row[2],
-                "active": row[3],
-                "first_name": row[4] if len(row) > 4 else None,
-                "middle_name": row[5] if len(row) > 5 else None,
-                "last_name": row[6] if len(row) > 6 else None,
-                "contact_info": row[7] if len(row) > 7 else None,
-                "gender": row[8] if len(row) > 8 else None,
-                "strand": row[9] if len(row) > 9 else None,
-                "payment_plan": row[10] if len(row) > 10 else None,
+                "username": username,
+                "role": role,
+                "name": name,
+                "active": active,
+                "first_name": profile.get("first_name") if profile else None,
+                "middle_name": profile.get("middle_name") if profile else None,
+                "last_name": profile.get("last_name") if profile else None,
+                "contact_info": profile.get("contact_info") if profile else None,
+                "gender": profile.get("gender") if profile else None,
+                "strand": profile.get("strand") if profile else None,
+                "section": profile.get("section") if profile else None,
+                "payment_plan": profile.get("payment_plan") if profile else None,
+                "gen_role": profile.get("gen_role") if profile else None,
+                "position": profile.get("position") if profile else None,
+                "department": profile.get("department") if profile else None,
+                "date_hired": profile.get("date_hired") if profile else None,
+                "status": profile.get("status") if profile else None,
+                "monthly_salary": profile.get("monthly_salary") if profile else None,
             }
             users.append(user_data)
         return users
@@ -118,109 +179,175 @@ def get_users():
 
 @router.post("/users", response_model=UserResponse)
 def create_user(user: UserCreate):
-    """Create a new user (For IT)."""
+    """Create a new user (users + role table row)."""
     client = get_db_client()
     try:
-        # Check if exists
-        check = client.sqlQuery(
-            f"SELECT id FROM users WHERE username = '{user.username}'"
-        )
+        check = client.sqlQuery(f"SELECT id FROM users WHERE username = '{_esc(user.username)}'")
         if check:
             raise HTTPException(status_code=400, detail="Username already exists")
 
-        # Students always get password "123" when creating
         password_to_use = "123" if user.role == "student" else user.password
         hashed_pw = get_password_hash(password_to_use)
 
-        # Build display name from first_name + last_name if available
-        display_name = user.name
-        if user.first_name and user.last_name:
-            display_name = f"{user.first_name} {user.last_name}"
-        elif user.first_name:
-            display_name = user.first_name
-        elif user.last_name:
-            display_name = user.last_name
+        client.sqlExec(
+            f"INSERT INTO users (username, hashed_password, role, active) "
+            f"VALUES ('{_esc(user.username)}', '{_esc(hashed_pw)}', '{_esc(user.role)}', {str(user.active).lower()})"
+        )
 
-        strand_val = (user.strand or "") if getattr(user, "strand", None) else ""
-        payment_plan_val = (user.payment_plan or "") if getattr(user, "payment_plan", None) else ""
-        if user.role == "student" and not payment_plan_val:
-            payment_plan_val = "plan_a"
-        query = f"""
-            INSERT INTO users (username, hashed_password, role, name, active, first_name, middle_name, last_name, contact_info, gender, strand, payment_plan)
-            VALUES ('{user.username}', '{hashed_pw}', '{user.role}', '{display_name}', {user.active},
-                    '{user.first_name or ""}', '{user.middle_name or ""}', '{user.last_name or ""}',
-                    '{user.contact_info or ""}', '{user.gender or ""}', '{strand_val}', '{payment_plan_val}')
-        """
-        try:
-            client.sqlExec(query)
-        except Exception:
-            query_fb = f"""
-                INSERT INTO users (username, hashed_password, role, name, active, first_name, middle_name, last_name, contact_info, gender)
-                VALUES ('{user.username}', '{hashed_pw}', '{user.role}', '{display_name}', {user.active},
-                        '{user.first_name or ""}', '{user.middle_name or ""}', '{user.last_name or ""}',
-                        '{user.contact_info or ""}', '{user.gender or ""}')
-            """
-            client.sqlExec(query_fb)
-        return user
+        fn, mn, ln = user.first_name or "", user.middle_name or "", user.last_name or ""
+        if user.role == "student":
+            section = getattr(user, "section", None) or ""
+            payment_plan = (user.payment_plan or "plan_a") if getattr(user, "payment_plan", None) else "plan_a"
+            client.sqlExec(
+                f"INSERT INTO students (username, first_name, middle_name, last_name, gender, strand, section, payment_plan) "
+                f"VALUES ('{_esc(user.username)}', '{_esc(fn)}', '{_esc(mn)}', '{_esc(ln)}', "
+                f"'{_esc(user.gender or "")}', '{_esc(user.strand or "")}', '{_esc(section)}', '{_esc(payment_plan)}')"
+            )
+        elif user.role == "staff":
+            pos = getattr(user, "position", None) or ""
+            dept = getattr(user, "department", None) or ""
+            dh = getattr(user, "date_hired", None) or ""
+            st = getattr(user, "status", None) or ""
+            sal = getattr(user, "monthly_salary", None)
+            sal_val = int(sal) if sal is not None else 0
+            client.sqlExec(
+                f"INSERT INTO staff (username, first_name, middle_name, last_name, gender, position, department, date_hired, status, monthly_salary) "
+                f"VALUES ('{_esc(user.username)}', '{_esc(fn)}', '{_esc(mn)}', '{_esc(ln)}', '{_esc(user.gender or "")}', "
+                f"'{_esc(pos)}', '{_esc(dept)}', '{_esc(dh)}', '{_esc(st)}', {sal_val})"
+            )
+        elif user.role in ROLE_TABLES:
+            contact = user.contact_info or ""
+            client.sqlExec(
+                f"INSERT INTO {user.role} (username, first_name, middle_name, last_name, gender, contact_information) "
+                f"VALUES ('{_esc(user.username)}', '{_esc(fn)}', '{_esc(mn)}', '{_esc(ln)}', "
+                f"'{_esc(user.gender or "")}', '{_esc(contact)}')"
+            )
+
+        name = _name_from_parts(user.first_name, user.middle_name, user.last_name) or user.username
+        resp = {
+            "username": user.username,
+            "role": user.role,
+            "name": name,
+            "active": user.active,
+            "first_name": user.first_name,
+            "middle_name": user.middle_name,
+            "last_name": user.last_name,
+            "contact_info": user.contact_info,
+            "gender": user.gender,
+            "strand": user.strand,
+            "section": getattr(user, "section", None),
+            "payment_plan": user.payment_plan,
+            "gen_role": None,
+            "position": getattr(user, "position", None),
+            "department": getattr(user, "department", None),
+            "date_hired": getattr(user, "date_hired", None),
+            "status": getattr(user, "status", None),
+            "monthly_salary": getattr(user, "monthly_salary", None),
+        }
+        return resp
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/users/{username}")
 def update_user(username: str, user: UserUpdate):
-    """Update user details or password (Admin/IT only)."""
+    """Update user (users + role table)."""
     client = get_db_client()
     try:
+        check = client.sqlQuery(f"SELECT id, role FROM users WHERE username = '{_esc(username)}'")
+        if not check:
+            raise HTTPException(status_code=404, detail="User not found")
+        current_role = check[0][1]
+        un = _esc(username)
+
         updates = []
         if user.role:
-            updates.append(f"role = '{user.role}'")
-        if user.name:
-            updates.append(f"name = '{user.name}'")
+            updates.append(f"role = '{_esc(user.role)}'")
         if user.active is not None:
             updates.append(f"active = {str(user.active).lower()}")
         if user.password:
-            hashed_pw = get_password_hash(user.password)
-            updates.append(f"hashed_password = '{hashed_pw}'")
-        if user.first_name is not None:
-            updates.append(f"first_name = '{user.first_name}'")
-        if user.middle_name is not None:
-            updates.append(f"middle_name = '{user.middle_name}'")
-        if user.last_name is not None:
-            updates.append(f"last_name = '{user.last_name}'")
-        if user.contact_info is not None:
-            updates.append(f"contact_info = '{user.contact_info}'")
-        if user.gender is not None:
-            updates.append(f"gender = '{user.gender}'")
-
-        # Update display name if first/last name changed
-        if user.first_name is not None or user.last_name is not None:
-            # Get current values
-            current = client.sqlQuery(f"SELECT first_name, last_name FROM users WHERE username = '{username}'")
-            if current:
-                fn = user.first_name if user.first_name is not None else (current[0][0] if current[0][0] else "")
-                ln = user.last_name if user.last_name is not None else (current[0][1] if len(current[0]) > 1 and current[0][1] else "")
-                if fn and ln:
-                    updates.append(f"name = '{fn} {ln}'")
-                elif fn:
-                    updates.append(f"name = '{fn}'")
-                elif ln:
-                    updates.append(f"name = '{ln}'")
-
+            updates.append(f"hashed_password = '{_esc(get_password_hash(user.password))}'")
         if updates:
-            set_clause = ", ".join(updates)
-            client.sqlExec(f"UPDATE users SET {set_clause} WHERE username = '{username}'")
+            client.sqlExec(f"UPDATE users SET {', '.join(updates)} WHERE username = '{un}'")
 
-        # Update payment_plan in a separate UPDATE so missing column never fails the request
-        if user.payment_plan is not None:
-            if user.payment_plan not in ("", "plan_a", "plan_b", "plan_c"):
-                raise HTTPException(status_code=400, detail="payment_plan must be plan_a, plan_b, or plan_c")
-            try:
-                client.sqlExec(f"UPDATE users SET payment_plan = '{user.payment_plan}' WHERE username = '{username}'")
-            except Exception:
-                pass  # column may not exist
+        # Update role table (current role)
+        role = user.role or current_role
+        if role == "student":
+            up = []
+            if user.first_name is not None:
+                up.append(f"first_name = '{_esc(user.first_name)}'")
+            if user.middle_name is not None:
+                up.append(f"middle_name = '{_esc(user.middle_name)}'")
+            if user.last_name is not None:
+                up.append(f"last_name = '{_esc(user.last_name)}'")
+            if user.gender is not None:
+                up.append(f"gender = '{_esc(user.gender)}'")
+            if user.strand is not None:
+                up.append(f"strand = '{_esc(user.strand)}'")
+            if getattr(user, "section", None) is not None:
+                up.append(f"section = '{_esc(user.section)}'")
+            if user.payment_plan is not None:
+                if user.payment_plan not in ("", "plan_a", "plan_b", "plan_c"):
+                    raise HTTPException(status_code=400, detail="payment_plan must be plan_a, plan_b, or plan_c")
+                up.append(f"payment_plan = '{_esc(user.payment_plan)}'")
+            if up:
+                client.sqlExec(f"UPDATE students SET {', '.join(up)} WHERE username = '{un}'")
+        elif role == "staff":
+            up = []
+            if user.first_name is not None:
+                up.append(f"first_name = '{_esc(user.first_name)}'")
+            if user.middle_name is not None:
+                up.append(f"middle_name = '{_esc(user.middle_name)}'")
+            if user.last_name is not None:
+                up.append(f"last_name = '{_esc(user.last_name)}'")
+            if user.gender is not None:
+                up.append(f"gender = '{_esc(user.gender)}'")
+            if getattr(user, "position", None) is not None:
+                up.append(f"position = '{_esc(user.position)}'")
+            if getattr(user, "department", None) is not None:
+                up.append(f"department = '{_esc(user.department)}'")
+            if getattr(user, "date_hired", None) is not None:
+                up.append(f"date_hired = '{_esc(user.date_hired)}'")
+            if getattr(user, "status", None) is not None:
+                up.append(f"status = '{_esc(user.status)}'")
+            if getattr(user, "monthly_salary", None) is not None:
+                up.append(f"monthly_salary = {int(user.monthly_salary)}")
+            if up:
+                client.sqlExec(f"UPDATE staff SET {', '.join(up)} WHERE username = '{un}'")
+            # Staff deductions (payroll): replace all for this staff
+            deductions = getattr(user, "deductions", None)
+            if deductions is not None and isinstance(deductions, list) and len(deductions) >= 0:
+                try:
+                    client.sqlExec(f"DELETE FROM staff_deductions WHERE staff_id = '{un}'")
+                except Exception:
+                    pass
+                for d in deductions:
+                    dtype = (getattr(d, "deduction_type", None) or (d.get("deduction_type") if isinstance(d, dict) else None) or "").strip() or "Deduction"
+                    amt = getattr(d, "amount", None)
+                    if amt is None and isinstance(d, dict):
+                        amt = d.get("amount", 0)
+                    amt = float(amt or 0)
+                    amt_cents = int(round(amt * 100))
+                    client.sqlExec(
+                        f"INSERT INTO staff_deductions (staff_id, deduction_type, amount) VALUES ('{un}', '{_esc(str(dtype))}', {amt_cents})"
+                    )
+        elif role in ROLE_TABLES:
+            up = []
+            if user.first_name is not None:
+                up.append(f"first_name = '{_esc(user.first_name)}'")
+            if user.middle_name is not None:
+                up.append(f"middle_name = '{_esc(user.middle_name)}'")
+            if user.last_name is not None:
+                up.append(f"last_name = '{_esc(user.last_name)}'")
+            if user.gender is not None:
+                up.append(f"gender = '{_esc(user.gender)}'")
+            if user.contact_info is not None:
+                up.append(f"contact_information = '{_esc(user.contact_info)}'")
+            if up:
+                client.sqlExec(f"UPDATE {role} SET {', '.join(up)} WHERE username = '{un}'")
 
-        if not updates:
-            return {"message": "No changes requested"}
         return {"message": "User updated successfully"}
     except HTTPException:
         raise
@@ -233,41 +360,39 @@ class ProfileRequest(BaseModel):
 
 
 def _get_user_profile(username: str):
-    """Internal helper to fetch user profile."""
+    """Fetch user profile from users + role table."""
     client = get_db_client()
     if not username:
         raise HTTPException(status_code=400, detail="Username is required")
-    
-    # Try to get strand and payment_plan if columns exist
-    try:
-        result = client.sqlQuery(
-            f"SELECT username, role, name, first_name, middle_name, last_name, contact_info, gender, strand, payment_plan FROM users WHERE username = '{username}'"
-        )
-    except Exception:
-        try:
-            result = client.sqlQuery(
-                f"SELECT username, role, name, first_name, middle_name, last_name, contact_info, gender, strand FROM users WHERE username = '{username}'"
-            )
-        except Exception:
-            result = client.sqlQuery(
-                f"SELECT username, role, name, first_name, middle_name, last_name, contact_info, gender FROM users WHERE username = '{username}'"
-            )
-    if not result or len(result) == 0:
+    un = _esc(username)
+    result = client.sqlQuery(f"SELECT username, role FROM users WHERE username = '{un}'")
+    if not result:
         raise HTTPException(status_code=404, detail=f"User '{username}' not found")
-    
-    row = result[0]
-    return {
-        "username": row[0],
-        "role": row[1],
-        "name": row[2],
-        "first_name": row[3] if len(row) > 3 and row[3] else None,
-        "middle_name": row[4] if len(row) > 4 and row[4] else None,
-        "last_name": row[5] if len(row) > 5 and row[5] else None,
-        "contact_info": row[6] if len(row) > 6 and row[6] else None,
-        "gender": row[7] if len(row) > 7 and row[7] else None,
-        "strand": row[8] if len(row) > 8 and row[8] else None,
-        "payment_plan": row[9] if len(row) > 9 and row[9] else None,
+    role = result[0][1]
+    profile = _fetch_role_row(client, username, role)
+    if not profile:
+        return {"username": username, "role": role, "name": username, "first_name": None, "middle_name": None, "last_name": None, "contact_info": None, "gender": None, "strand": None, "payment_plan": None, "gen_role": None, "position": None, "department": None, "date_hired": None, "status": None, "monthly_salary": None}
+    name = _name_from_parts(profile.get("first_name"), profile.get("middle_name"), profile.get("last_name")) or username
+    out = {
+        "username": username,
+        "role": role,
+        "name": name,
+        "first_name": profile.get("first_name"),
+        "middle_name": profile.get("middle_name"),
+        "last_name": profile.get("last_name"),
+        "contact_info": profile.get("contact_info"),
+        "gender": profile.get("gender"),
+        "strand": profile.get("strand"),
+        "payment_plan": profile.get("payment_plan"),
+        "gen_role": profile.get("gen_role"),
     }
+    if role == "staff":
+        out["position"] = profile.get("position")
+        out["department"] = profile.get("department")
+        out["date_hired"] = profile.get("date_hired")
+        out["status"] = profile.get("status")
+        out["monthly_salary"] = profile.get("monthly_salary")
+    return out
 
 
 @router.post("/profile")
@@ -279,7 +404,7 @@ def get_current_user_profile(req: ProfileRequest):
         raise
     except Exception as e:
         print(f"Profile fetch error: {e}")
-        raise HTTPException(status_code=500, detail=f"Error fetching profile: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 class ProfileUpdateRequest(BaseModel):
@@ -289,55 +414,67 @@ class ProfileUpdateRequest(BaseModel):
 
 @router.put("/profile")
 def update_user_profile(req: ProfileUpdateRequest):
-    """Update current user's own profile."""
+    """Update current user's own profile (role table only)."""
     client = get_db_client()
     username = req.username
     profile = req.profile
     try:
-        updates = []
-        if profile.first_name is not None:
-            updates.append(f"first_name = '{profile.first_name}'")
-        if profile.middle_name is not None:
-            updates.append(f"middle_name = '{profile.middle_name}'")
-        if profile.last_name is not None:
-            updates.append(f"last_name = '{profile.last_name}'")
-        if profile.contact_info is not None:
-            updates.append(f"contact_info = '{profile.contact_info}'")
-        if profile.gender is not None:
-            updates.append(f"gender = '{profile.gender}'")
-        # Do NOT add payment_plan here — column may not exist; we update it separately below
+        result = client.sqlQuery(f"SELECT role FROM users WHERE username = '{_esc(username)}'")
+        if not result:
+            raise HTTPException(status_code=404, detail="User not found")
+        role = result[0][0]
+        un = _esc(username)
 
-        # Update display name
-        if profile.first_name is not None or profile.last_name is not None:
-            current = client.sqlQuery(f"SELECT first_name, last_name FROM users WHERE username = '{username}'")
-            if current:
-                fn = profile.first_name if profile.first_name is not None else (current[0][0] if current[0][0] else "")
-                ln = profile.last_name if profile.last_name is not None else (current[0][1] if len(current[0]) > 1 and current[0][1] else "")
-                if fn and ln:
-                    updates.append(f"name = '{fn} {ln}'")
-                elif fn:
-                    updates.append(f"name = '{fn}'")
-                elif ln:
-                    updates.append(f"name = '{ln}'")
+        if role == "student":
+            up = []
+            if profile.first_name is not None:
+                up.append(f"first_name = '{_esc(profile.first_name)}'")
+            if profile.middle_name is not None:
+                up.append(f"middle_name = '{_esc(profile.middle_name)}'")
+            if profile.last_name is not None:
+                up.append(f"last_name = '{_esc(profile.last_name)}'")
+            if profile.contact_info is not None:
+                pass  # students don't have contact_info in table; we use section or leave it
+            if profile.gender is not None:
+                up.append(f"gender = '{_esc(profile.gender)}'")
+            if profile.payment_plan is not None:
+                if profile.payment_plan not in ("", "plan_a", "plan_b", "plan_c"):
+                    raise HTTPException(status_code=400, detail="payment_plan must be plan_a, plan_b, or plan_c")
+                up.append(f"payment_plan = '{_esc(profile.payment_plan)}'")
+            if profile.strand is not None:
+                up.append(f"strand = '{_esc(profile.strand)}'")
+            if getattr(profile, "section", None) is not None:
+                up.append(f"section = '{_esc(profile.section)}'")
+            if up:
+                client.sqlExec(f"UPDATE students SET {', '.join(up)} WHERE username = '{un}'")
+        elif role == "staff":
+            up = []
+            if profile.first_name is not None:
+                up.append(f"first_name = '{_esc(profile.first_name)}'")
+            if profile.middle_name is not None:
+                up.append(f"middle_name = '{_esc(profile.middle_name)}'")
+            if profile.last_name is not None:
+                up.append(f"last_name = '{_esc(profile.last_name)}'")
+            if profile.gender is not None:
+                up.append(f"gender = '{_esc(profile.gender)}'")
+            if up:
+                client.sqlExec(f"UPDATE staff SET {', '.join(up)} WHERE username = '{un}'")
+        elif role in ROLE_TABLES:
+            up = []
+            if profile.first_name is not None:
+                up.append(f"first_name = '{_esc(profile.first_name)}'")
+            if profile.middle_name is not None:
+                up.append(f"middle_name = '{_esc(profile.middle_name)}'")
+            if profile.last_name is not None:
+                up.append(f"last_name = '{_esc(profile.last_name)}'")
+            if profile.gender is not None:
+                up.append(f"gender = '{_esc(profile.gender)}'")
+            if profile.contact_info is not None:
+                up.append(f"contact_information = '{_esc(profile.contact_info)}'")
+            if up:
+                client.sqlExec(f"UPDATE {role} SET {', '.join(up)} WHERE username = '{un}'")
 
-        if updates:
-            set_clause = ", ".join(updates)
-            client.sqlExec(f"UPDATE users SET {set_clause} WHERE username = '{username}'")
-
-        # Update payment_plan in a separate UPDATE so missing column never fails the request
-        payment_plan_set = False
-        if profile.payment_plan is not None:
-            if profile.payment_plan not in ("", "plan_a", "plan_b", "plan_c"):
-                raise HTTPException(status_code=400, detail="payment_plan must be plan_a, plan_b, or plan_c")
-            try:
-                client.sqlExec(f"UPDATE users SET payment_plan = '{profile.payment_plan}' WHERE username = '{username}'")
-                payment_plan_set = True
-            except Exception:
-                pass  # column may not exist; profile still updated
-
-        if not updates and not payment_plan_set:
-            return {"message": "No changes requested"}
-        return {"message": "Profile updated successfully", "payment_plan_set": payment_plan_set}
+        return {"message": "Profile updated successfully"}
     except HTTPException:
         raise
     except Exception as e:
@@ -355,21 +492,13 @@ def change_password(req: PasswordChangeRequest):
     """Change current user's password."""
     client = get_db_client()
     try:
-        # Verify current password
-        result = client.sqlQuery(
-            f"SELECT hashed_password FROM users WHERE username = '{req.username}'"
-        )
+        result = client.sqlQuery(f"SELECT hashed_password FROM users WHERE username = '{_esc(req.username)}'")
         if not result:
             raise HTTPException(status_code=404, detail="User not found")
-
-        stored_hash = result[0][0]
-        if not verify_password(req.current_password, stored_hash):
+        if not verify_password(req.current_password, result[0][0]):
             raise HTTPException(status_code=400, detail="Current password is incorrect")
-
-        # Update password
         new_hash = get_password_hash(req.new_password)
-        client.sqlExec(f"UPDATE users SET hashed_password = '{new_hash}' WHERE username = '{req.username}'")
-
+        client.sqlExec(f"UPDATE users SET hashed_password = '{_esc(new_hash)}' WHERE username = '{_esc(req.username)}'")
         return {"message": "Password changed successfully"}
     except HTTPException:
         raise
@@ -378,7 +507,6 @@ def change_password(req: PasswordChangeRequest):
 
 
 def _normalize_header(h: str) -> str:
-    """Normalize Excel column header for matching."""
     if not h:
         return ""
     return str(h).strip().lower().replace(" ", "_").replace("-", "_")
@@ -387,9 +515,8 @@ def _normalize_header(h: str) -> str:
 @router.post("/users/import-students")
 async def import_students_excel(file: UploadFile = File(...)):
     """
-    Import students from an Excel file. Expected columns (first row = headers):
-    student_id (or username), last_name, first_name, middle_name, gender, strand, contact_information
-    All imported users get role=student and password "123".
+    Import students from Excel. Creates users (role=student) + students rows.
+    Expected columns: student_id/username, last_name, first_name, middle_name, gender, strand, section, contact_information, payment_plan.
     """
     if not file.filename or not file.filename.lower().endswith(".xlsx"):
         raise HTTPException(status_code=400, detail="File must be Excel (.xlsx)")
@@ -403,14 +530,13 @@ async def import_students_excel(file: UploadFile = File(...)):
         ws = wb.active
         if not ws:
             raise HTTPException(status_code=400, detail="Excel file has no sheet")
-
         rows = list(ws.iter_rows(values_only=True))
         if len(rows) < 2:
             raise HTTPException(status_code=400, detail="Excel must have a header row and at least one data row")
 
         headers = [_normalize_header(str(c)) if c is not None else "" for c in rows[0]]
         col_map = {}
-        for name in ("student_id", "username", "last_name", "first_name", "middle_name", "gender", "strand", "contact_information", "contact_info"):
+        for name in ("student_id", "username", "last_name", "first_name", "middle_name", "gender", "strand", "section", "contact_information", "contact_info", "payment_plan"):
             for i, h in enumerate(headers):
                 if h == name or h == name.replace("_", ""):
                     col_map[name] = i
@@ -428,9 +554,6 @@ async def import_students_excel(file: UploadFile = File(...)):
                 return ""
             v = row[idx]
             return "" if v is None else str(v).strip()
-
-        def esc(s: str) -> str:
-            return (s or "").replace("'", "''")
 
         client = get_db_client()
         hashed_pw = get_password_hash("123")
@@ -450,31 +573,25 @@ async def import_students_excel(file: UploadFile = File(...)):
             middle_name = get_cell(row, "middle_name")
             gender = get_cell(row, "gender")
             strand_val = get_cell(row, "strand")
-            contact = get_cell(row, "contact_information") or get_cell(row, "contact_info")
-            display_name = f"{first_name} {last_name}".strip() or username
-
+            section_val = get_cell(row, "section")
+            payment_plan_val = get_cell(row, "payment_plan") or "plan_a"
+            if payment_plan_val not in ("plan_a", "plan_b", "plan_c"):
+                payment_plan_val = "plan_a"
             try:
-                check = client.sqlQuery(f"SELECT id FROM users WHERE username = '{esc(username)}'")
+                check = client.sqlQuery(f"SELECT id FROM users WHERE username = '{_esc(username)}'")
                 if check:
                     skipped.append(username)
                     continue
-                query = f"""
-                    INSERT INTO users (username, hashed_password, role, name, active, first_name, middle_name, last_name, contact_info, gender, strand, payment_plan)
-                    VALUES ('{esc(username)}', '{hashed_pw}', 'student', '{esc(display_name)}', true,
-                            '{esc(first_name)}', '{esc(middle_name)}', '{esc(last_name)}',
-                            '{esc(contact)}', '{esc(gender)}', '{esc(strand_val)}', 'plan_a')
-                """
-                try:
-                    client.sqlExec(query)
-                    created += 1
-                except Exception:
-                    q2 = f"""
-                        INSERT INTO users (username, hashed_password, role, name, active, first_name, middle_name, last_name, contact_info, gender)
-                        VALUES ('{esc(username)}', '{hashed_pw}', 'student', '{esc(display_name)}', true,
-                                '{esc(first_name)}', '{esc(middle_name)}', '{esc(last_name)}', '{esc(contact)}', '{esc(gender)}')
-                    """
-                    client.sqlExec(q2)
-                    created += 1
+                client.sqlExec(
+                    f"INSERT INTO users (username, hashed_password, role, active) "
+                    f"VALUES ('{_esc(username)}', '{hashed_pw}', 'student', true)"
+                )
+                client.sqlExec(
+                    f"INSERT INTO students (username, first_name, middle_name, last_name, gender, strand, section, payment_plan) "
+                    f"VALUES ('{_esc(username)}', '{_esc(first_name)}', '{_esc(middle_name)}', '{_esc(last_name)}', "
+                    f"'{_esc(gender)}', '{_esc(strand_val)}', '{_esc(section_val)}', '{_esc(payment_plan_val)}')"
+                )
+                created += 1
             except Exception as e:
                 errors.append(f"Row {row_idx} ({username}): {str(e)}")
 
@@ -493,16 +610,21 @@ async def import_students_excel(file: UploadFile = File(...)):
 
 @router.delete("/users/{username}")
 def delete_user(username: str):
-    """Delete a user (Admin only)."""
+    """Delete a user (remove from role table then users)."""
     client = get_db_client()
     try:
-        # Check if user exists
-        check = client.sqlQuery(f"SELECT id FROM users WHERE username = '{username}'")
+        check = client.sqlQuery(f"SELECT id, role FROM users WHERE username = '{_esc(username)}'")
         if not check:
             raise HTTPException(status_code=404, detail="User not found")
-        
-        # Delete user
-        client.sqlExec(f"DELETE FROM users WHERE username = '{username}'")
+        role = check[0][1]
+        un = _esc(username)
+        if role == "student":
+            client.sqlExec(f"DELETE FROM students WHERE username = '{un}'")
+        elif role == "staff":
+            client.sqlExec(f"DELETE FROM staff WHERE username = '{un}'")
+        elif role in ROLE_TABLES:
+            client.sqlExec(f"DELETE FROM {role} WHERE username = '{un}'")
+        client.sqlExec(f"DELETE FROM users WHERE username = '{un}'")
         return {"message": "User deleted successfully"}
     except HTTPException:
         raise

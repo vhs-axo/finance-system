@@ -7,15 +7,18 @@ from .core import (
     DB_PORT,
     DB_USER,
     INITIAL_ADMIN_PASS,
+    INITIAL_BOOKKEEPER_PASS,
+    INITIAL_DEPT_HEAD_PASS,
     INITIAL_PAYABLES_PASS,
-    INITIAL_VP_FINANCE_PASS,
     INITIAL_PRESIDENT_PASS,
     INITIAL_PROCUREMENT_PASS,
-    INITIAL_DEPT_HEAD_PASS,
-    INITIAL_BOOKKEEPER_PASS,
     INITIAL_STUDENT_PASS,
+    INITIAL_VP_FINANCE_PASS,
 )
 from .utils import get_password_hash
+
+# Each of these has its own table with same schema: username, first_name, middle_name, last_name, gender, contact_information
+ROLE_TABLES = ["admin", "payables", "bookkeeper", "vp_finance", "president", "procurement", "dept_head", "it"]
 
 
 def get_db_client() -> ImmudbClient:
@@ -29,185 +32,157 @@ def get_db_client() -> ImmudbClient:
         raise HTTPException(status_code=503, detail="Database Unavailable")
 
 
-def seed_users(client: ImmudbClient):
-    """Populate the database with initial users if empty."""
+def _role_table_schema(table_name: str) -> str:
+    """Same schema for all role tables (admin, payables, etc.)."""
+    return f"""
+            CREATE TABLE {table_name} (
+                id INTEGER AUTO_INCREMENT,
+                username VARCHAR,
+                first_name VARCHAR,
+                middle_name VARCHAR,
+                last_name VARCHAR,
+                gender VARCHAR,
+                contact_information VARCHAR,
+                PRIMARY KEY id
+            )
+        """
+
+
+def _ensure_new_user_tables(client: ImmudbClient):
+    """
+    - users: id, username, hashed_password, role (student|staff|admin|payables|...), active
+    - students, staff: as before
+    - admin, payables, bookkeeper, vp_finance, president, procurement, dept_head, it: each own table, same columns
+    """
+    # Check if old users table exists (has 'name' column)
     try:
-        # Check if users exist
+        client.sqlQuery("SELECT id, username, name FROM users LIMIT 1")
+        try:
+            client.sqlExec("DROP TABLE users")
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+    # Create users table if not exists
+    try:
+        client.sqlQuery("SELECT id, username, role, active FROM users LIMIT 1")
+    except Exception:
+        client.sqlExec("""
+            CREATE TABLE users (
+                id INTEGER AUTO_INCREMENT,
+                username VARCHAR,
+                hashed_password VARCHAR,
+                role VARCHAR,
+                active BOOLEAN,
+                PRIMARY KEY id
+            )
+        """)
+        print("  ✅ Created users table")
+
+    # Create students table if not exists
+    try:
+        client.sqlQuery("SELECT id FROM students LIMIT 1")
+    except Exception:
+        client.sqlExec("""
+            CREATE TABLE students (
+                id INTEGER AUTO_INCREMENT,
+                username VARCHAR,
+                first_name VARCHAR,
+                middle_name VARCHAR,
+                last_name VARCHAR,
+                gender VARCHAR,
+                strand VARCHAR,
+                section VARCHAR,
+                payment_plan VARCHAR,
+                PRIMARY KEY id
+            )
+        """)
+        print("  ✅ Created students table")
+
+    # Create staff table if not exists
+    try:
+        client.sqlQuery("SELECT id FROM staff LIMIT 1")
+    except Exception:
+        client.sqlExec("""
+            CREATE TABLE staff (
+                id INTEGER AUTO_INCREMENT,
+                username VARCHAR,
+                first_name VARCHAR,
+                middle_name VARCHAR,
+                last_name VARCHAR,
+                gender VARCHAR,
+                position VARCHAR,
+                department VARCHAR,
+                date_hired VARCHAR,
+                status VARCHAR,
+                monthly_salary INTEGER,
+                PRIMARY KEY id
+            )
+        """)
+        print("  ✅ Created staff table")
+
+    # Drop old general table if it exists (migration)
+    try:
+        client.sqlExec("DROP TABLE general")
+        print("  ✅ Dropped old general table")
+    except Exception:
+        pass
+
+    # Create one table per role: admin, payables, bookkeeper, vp_finance, president, procurement, dept_head, it
+    for table_name in ROLE_TABLES:
+        try:
+            client.sqlQuery(f"SELECT id FROM {table_name} LIMIT 1")
+        except Exception:
+            client.sqlExec(_role_table_schema(table_name))
+            print(f"  ✅ Created {table_name} table")
+
+
+def seed_users(client: ImmudbClient):
+    """Populate the database with initial users if empty (users + role tables)."""
+    try:
         try:
             result = client.sqlQuery("SELECT COUNT(*) FROM users")
             user_count = result[0][0]
         except Exception:
-            # Table might not exist yet, treat as 0
             user_count = 0
 
         if user_count == 0:
-            print(
-                "⚡ Database is empty. Seeding default users from Environment variables..."
-            )
-
-            # Helper to safely escape strings for SQL (basic prevention)
-            # In a full production app, use parameterized queries if the client library supports them fully
-            users_to_seed = [
-                (
-                    "admin@gmail.com",
-                    get_password_hash(INITIAL_ADMIN_PASS),
-                    "admin",
-                    "System Administrator",
-                    "System",
-                    "Administrator",
-                    "admin@gmail.com",
-                    "Other",
-                ),
-                (
-                    "payables@gmail.com",
-                    get_password_hash(INITIAL_PAYABLES_PASS),
-                    "payables",
-                    "Payables Associate",
-                    "Payables",
-                    "Associate",
-                    "payables@gmail.com",
-                    "Other",
-                ),
-                (
-                    "vpfinance@gmail.com",
-                    get_password_hash(INITIAL_VP_FINANCE_PASS),
-                    "vp_finance",
-                    "VP Finance",
-                    "VP",
-                    "Finance",
-                    "vpfinance@gmail.com",
-                    "Other",
-                ),
-                (
-                    "president@gmail.com",
-                    get_password_hash(INITIAL_PRESIDENT_PASS),
-                    "president",
-                    "President",
-                    "President",
-                    "Office",
-                    "president@gmail.com",
-                    "Other",
-                ),
-                (
-                    "procurement@gmail.com",
-                    get_password_hash(INITIAL_PROCUREMENT_PASS),
-                    "procurement",
-                    "Procurement Officer",
-                    "Procurement",
-                    "Officer",
-                    "procurement@gmail.com",
-                    "Other",
-                ),
-                (
-                    "depthead@gmail.com",
-                    get_password_hash(INITIAL_DEPT_HEAD_PASS),
-                    "dept_head",
-                    "Department Head",
-                    "Department",
-                    "Head",
-                    "depthead@gmail.com",
-                    "Other",
-                ),
-                (
-                    "bookkeeper@gmail.com",
-                    get_password_hash(INITIAL_BOOKKEEPER_PASS),
-                    "bookkeeper",
-                    "Bookkeeper",
-                    "Bookkeeper",
-                    "Account",
-                    "bookkeeper@gmail.com",
-                    "Other",
-                ),
-                (
-                    "student@gmail.com",
-                    get_password_hash(INITIAL_STUDENT_PASS),
-                    "student",
-                    "Student Account",
-                    "Student",
-                    "Account",
-                    "student@gmail.com",
-                    "Other",
-                ),
+            print("⚡ Database is empty. Seeding default users (users + role tables)...")
+            # Role-specific users: each gets role=admin/payables/... and a row in that table
+            role_seed = [
+                ("admin@gmail.com", get_password_hash(INITIAL_ADMIN_PASS), "admin", "System", "", "Administrator", "Other", "admin@gmail.com"),
+                ("payables@gmail.com", get_password_hash(INITIAL_PAYABLES_PASS), "payables", "Payables", "", "Associate", "Other", "payables@gmail.com"),
+                ("vpfinance@gmail.com", get_password_hash(INITIAL_VP_FINANCE_PASS), "vp_finance", "VP", "", "Finance", "Other", "vpfinance@gmail.com"),
+                ("president@gmail.com", get_password_hash(INITIAL_PRESIDENT_PASS), "president", "President", "", "Office", "Other", "president@gmail.com"),
+                ("procurement@gmail.com", get_password_hash(INITIAL_PROCUREMENT_PASS), "procurement", "Procurement", "", "Officer", "Other", "procurement@gmail.com"),
+                ("depthead@gmail.com", get_password_hash(INITIAL_DEPT_HEAD_PASS), "dept_head", "Department", "", "Head", "Other", "depthead@gmail.com"),
+                ("bookkeeper@gmail.com", get_password_hash(INITIAL_BOOKKEEPER_PASS), "bookkeeper", "Bookkeeper", "", "Account", "Other", "bookkeeper@gmail.com"),
             ]
-
-            for u in users_to_seed:
-                query = f"""
-                    INSERT INTO users (
-                        username, 
-                        hashed_password, 
-                        role, 
-                        name,
-                        first_name,
-                        last_name,
-                        contact_info,
-                        gender,
-                        active
-                    )
-                    VALUES (
-                        '{u[0]}', 
-                        '{u[1]}', 
-                        '{u[2]}', 
-                        '{u[3]}',
-                        '{u[4]}',
-                        '{u[5]}',
-                        '{u[6]}',
-                        '{u[7]}',
-                        true
-                    )
-                """
-                client.sqlExec(query)
+            def _e(s):
+                return (s or "").replace("'", "''")
+            for username, hashed_pw, role, fn, mn, ln, gender, contact in role_seed:
+                client.sqlExec(
+                    f"INSERT INTO users (username, hashed_password, role, active) "
+                    f"VALUES ('{_e(username)}', '{_e(hashed_pw)}', '{role}', true)"
+                )
+                client.sqlExec(
+                    f"INSERT INTO {role} (username, first_name, middle_name, last_name, gender, contact_information) "
+                    f"VALUES ('{_e(username)}', '{_e(fn)}', '{_e(mn)}', '{_e(ln)}', '{_e(gender)}', '{_e(contact)}')"
+                )
+            # One student
+            student_pw = get_password_hash(INITIAL_STUDENT_PASS).replace("'", "''")
+            client.sqlExec(
+                f"INSERT INTO users (username, hashed_password, role, active) "
+                f"VALUES ('student@gmail.com', '{student_pw}', 'student', true)"
+            )
+            client.sqlExec("""
+                INSERT INTO students (username, first_name, middle_name, last_name, gender, strand, section, payment_plan)
+                VALUES ('student@gmail.com', 'Student', '', 'Account', 'Other', 'Other', '', 'plan_a')
+            """)
             print("✅ Default users seeded successfully.")
     except Exception as e:
         print(f"⚠️ Seeding failed: {e}")
-
-
-def ensure_users_table_schema(client):
-    """Ensure the users table has all required columns. Recreates if needed."""
-    try:
-        # Try to query all expected columns
-        client.sqlQuery("SELECT id, username, hashed_password, role, name, active, first_name, middle_name, last_name, contact_info, gender FROM users LIMIT 1")
-        # All columns exist
-        return
-    except Exception:
-        # Columns are missing - need to recreate table
-        print("⚠️  Users table schema outdated. Migrating...")
-        try:
-            # Try to backup existing users (if any)
-            try:
-                existing_users = client.sqlQuery("SELECT username, hashed_password, role, name, active FROM users")
-                print(f"  Found {len(existing_users)} existing users (will be preserved if possible)")
-            except Exception:
-                existing_users = []
-            
-            # Drop existing table
-            try:
-                client.sqlExec("DROP TABLE users")
-            except Exception:
-                pass  # Table might not exist
-            
-            # Create new table with all columns
-            client.sqlExec("""
-                CREATE TABLE users (
-                    id INTEGER AUTO_INCREMENT,
-                    username VARCHAR,
-                    hashed_password VARCHAR,
-                    role VARCHAR,
-                    name VARCHAR,
-                    active BOOLEAN,
-                    first_name VARCHAR,
-                    middle_name VARCHAR,
-                    last_name VARCHAR,
-                    contact_info VARCHAR,
-                    gender VARCHAR,
-                    PRIMARY KEY id
-                )
-            """)
-            print("  ✅ Users table schema migrated")
-            
-            # Note: We don't restore existing users here as they would be missing profile data
-            # The seed_users function will create default users if table is empty
-        except Exception as e:
-            print(f"  ⚠️  Migration warning: {e}")
 
 
 def init_db():
@@ -215,9 +190,6 @@ def init_db():
     try:
         client = get_db_client()
 
-        # 1. Create Transactions Table
-        # Note: In immudb, altering tables can be strict. If table exists, this assumes
-        # it matches or we are starting fresh.
         client.sqlExec("""
             CREATE TABLE IF NOT EXISTS transactions (
                 id INTEGER AUTO_INCREMENT,
@@ -230,6 +202,7 @@ def init_db():
                 amount INTEGER,
                 status VARCHAR,
                 student_id VARCHAR,
+                staff_id VARCHAR,
                 approved_by VARCHAR,
                 approval_date TIMESTAMP,
                 proof_reference VARCHAR,
@@ -237,36 +210,11 @@ def init_db():
             )
         """)
 
-        # 2. Ensure Users Table has correct schema
-        ensure_users_table_schema(client)
-        
-        # Create table if it doesn't exist (after migration check)
-        try:
-            client.sqlQuery("SELECT id FROM users LIMIT 1")
-        except Exception:
-            # Table doesn't exist, create it
-            client.sqlExec("""
-                CREATE TABLE users (
-                    id INTEGER AUTO_INCREMENT,
-                    username VARCHAR,
-                    hashed_password VARCHAR,
-                    role VARCHAR,
-                    name VARCHAR,
-                    active BOOLEAN,
-                    first_name VARCHAR,
-                    middle_name VARCHAR,
-                    last_name VARCHAR,
-                    contact_info VARCHAR,
-                    gender VARCHAR,
-                    PRIMARY KEY id
-                )
-            """)
+        _ensure_new_user_tables(client)
 
-        # 3. Create Bills Table (for Payables bill management)
         try:
             client.sqlQuery("SELECT id FROM bills LIMIT 1")
         except Exception:
-            # Table doesn't exist, create it
             client.sqlExec("""
                 CREATE TABLE bills (
                     id INTEGER AUTO_INCREMENT,
@@ -279,11 +227,9 @@ def init_db():
                 )
             """)
 
-        # 4. Create Bill Assignments Table (links bills to students)
         try:
             client.sqlQuery("SELECT id FROM bill_assignments LIMIT 1")
         except Exception:
-            # Table doesn't exist, create it
             client.sqlExec("""
                 CREATE TABLE bill_assignments (
                     id INTEGER AUTO_INCREMENT,
@@ -296,11 +242,9 @@ def init_db():
                 )
             """)
 
-        # 5. Create Financial Allocations Table
         try:
             client.sqlQuery("SELECT id FROM financial_allocations LIMIT 1")
         except Exception:
-            # Table doesn't exist, create it
             client.sqlExec("""
                 CREATE TABLE financial_allocations (
                     id INTEGER AUTO_INCREMENT,
@@ -310,26 +254,54 @@ def init_db():
                 )
             """)
 
-        # 6. Add strand column to users table if it doesn't exist
         try:
-            client.sqlQuery("SELECT strand FROM users LIMIT 1")
+            client.sqlQuery("SELECT id FROM staff_payroll LIMIT 1")
         except Exception:
-            # Column doesn't exist, need to add it
-            # Since Immudb doesn't support ALTER TABLE ADD COLUMN easily, we'll note it for manual migration
-            print("⚠️  Note: 'strand' column should be added to users table for dept_head and student roles")
-            # For now, we'll handle this in the application layer
+            client.sqlExec("""
+                CREATE TABLE staff_payroll (
+                    id INTEGER AUTO_INCREMENT,
+                    staff_id VARCHAR,
+                    salary_amount INTEGER,
+                    updated_at TIMESTAMP,
+                    updated_by VARCHAR,
+                    PRIMARY KEY id
+                )
+            """)
+            client.sqlExec("CREATE INDEX ON staff_payroll(staff_id)")
+            print("  ✅ Created staff_payroll table")
+        try:
+            client.sqlQuery("SELECT id FROM staff_deductions LIMIT 1")
+        except Exception:
+            client.sqlExec("""
+                CREATE TABLE staff_deductions (
+                    id INTEGER AUTO_INCREMENT,
+                    staff_id VARCHAR,
+                    deduction_type VARCHAR,
+                    amount INTEGER,
+                    PRIMARY KEY id
+                )
+            """)
+            client.sqlExec("CREATE INDEX ON staff_deductions(staff_id)")
+            print("  ✅ Created staff_deductions table")
 
-        # 7. Create Index for faster lookups
         try:
             client.sqlExec("CREATE INDEX ON transactions(student_id)")
+            client.sqlExec("CREATE INDEX ON transactions(staff_id)")
             client.sqlExec("CREATE INDEX ON transactions(status)")
             client.sqlExec("CREATE INDEX ON bill_assignments(student_id)")
         except Exception:
-            pass  # Index might already exist
+            pass
+        # Migration: add staff_id if table existed without it
+        try:
+            client.sqlQuery("SELECT staff_id FROM transactions LIMIT 1")
+        except Exception:
+            try:
+                client.sqlExec("ALTER TABLE transactions ADD COLUMN staff_id VARCHAR")
+                print("  ✅ Added staff_id to transactions")
+            except Exception:
+                pass
 
-        # 8. Seed Users
         seed_users(client)
-
         print("✅ Database initialized successfully.")
     except Exception as e:
         print(f"⚠️ Startup warning (DB might be down or tables exist): {e}")

@@ -266,6 +266,8 @@
             color: var(--primary-green);
             font-weight: 700;
         }
+        .tab-btn { border-bottom: 2px solid transparent; }
+        .tab-btn.active { border-bottom-color: var(--primary-green); color: var(--primary-green); }
         #content { 
             flex: 1; 
             padding: 30px; 
@@ -576,6 +578,7 @@
             "Collection": ["Tuition Fee", "Miscellaneous Fee", "Organization Fund", "Donation"],
             "Disbursement": ["Utility Bill", "Teacher Salary", "Event Expense", "Maintenance", "Refund"]
         };
+        const POSITION_OPTIONS = ["Provision 1", "Provision 2", "Provision 3", "Regular Teacher"];
 
         // --- AUTH LOGIC ---
         document.getElementById('login-form').addEventListener('submit', async (e) => {
@@ -602,7 +605,8 @@
         function guestLogin() { initSession("guest", "guest", "Guest Visitor", null, null, null, null); }
 
         function initSession(user, role, name, first_name, last_name, strand, payment_plan) {
-            currentUser = { username: user, role: role, name: name, first_name: first_name || null, last_name: last_name || null, strand: strand || null, payment_plan: payment_plan || null };
+            const normalizedRole = (typeof role === 'string' ? role.trim().toLowerCase() : role) || 'guest';
+            currentUser = { username: user, role: normalizedRole, name: name, first_name: first_name || null, last_name: last_name || null, strand: strand || null, payment_plan: payment_plan || null };
             localStorage.setItem('user', JSON.stringify(currentUser));
             updateUIState();
         }
@@ -622,8 +626,9 @@
 
                 renderNav();
 
-                // Redirect based on role
-                if (currentUser.role === 'student') navigate('student-ledger');
+                // Redirect based on role (normalize for localStorage restore)
+                const r = (currentUser.role || '').toString().trim().toLowerCase();
+                if (r === 'student') navigate('student-ledger');
                 else navigate('dashboard');
             }
         }
@@ -633,15 +638,16 @@
             const nav = document.getElementById('nav-menu');
             nav.innerHTML = '';
 
-            const r = currentUser.role;
+            const r = (currentUser.role || '').toString().trim().toLowerCase();
             const items = [];
 
             if (r !== 'guest') items.push({id: 'dashboard', label: 'Dashboard'});
             if (r === 'guest') items.push({id: 'dashboard', label: 'Transparency Board'});
             if (r === 'student') {
-                items.push({id: 'student-ledger', label: 'My Financial Profile'});
+                items.push({id: 'student-ledger', label: 'My Ledger'});
                 items.push({id: 'financial-allocations', label: 'Financial Allocations'});
             }
+            if (r === 'staff') items.push({id: 'staff-profile', label: 'My Profile'});
             if (r === 'admin') items.push({id: 'financial-allocations', label: 'Financial Allocations'});
             const ledgerRoles = ['admin','payables','vp_finance','president','procurement','dept_head','bookkeeper'];
             const auditRoles = ['admin','vp_finance','president'];
@@ -650,10 +656,13 @@
             if (ledgerRoles.includes(r)) items.push({id: 'digital-ledger', label: 'Digital Ledger'});
             if (auditRoles.includes(r)) items.push({id: 'audit-trail', label: 'Audit Trail'});
             if (txnRoles.includes(r)) items.push({id: 'transaction', label: 'Transactions'});
-            // VP Finance, President, and Admin can see pending approvals
             if (['admin','vp_finance','president'].includes(r)) items.push({id: 'approvals', label: 'Pending Approvals'});
             if (r === 'bookkeeper') items.push({id: 'quickbooks', label: 'QuickBooks'});
-            if (r === 'payables' || r === 'admin') items.push({id: 'bills', label: 'Bill Management'});
+            if (r === 'payables' || r === 'admin') {
+                items.push({id: 'bills', label: 'Bill Management'});
+                items.push({id: 'students', label: 'Students'});
+                items.push({id: 'staff-search', label: 'Staff'});
+            }
             items.push({id: 'verification', label: 'Verification'});
             if (r === 'admin') items.push({id: 'users', label: 'User Management'});
             items.push({id: 'settings', label: 'Settings'});
@@ -684,10 +693,13 @@
                 case 'digital-ledger': renderDigitalLedgerPage(); break;
                 case 'verification': renderVerificationPage(); break;
                 case 'student-ledger': renderStudentLedger(); break;
+                case 'staff-profile': renderStaffProfile(); break;
                 case 'users': renderUserManagement(); break;
                 case 'settings': renderSettingsPage(); break;
                 case 'quickbooks': renderQuickBooksPage(); break;
                 case 'bills': renderBillsPage(); break;
+                case 'students': renderStudentsPage(); break;
+                case 'staff-search': renderStaffSearchPage(); break;
                 case 'financial-allocations': renderFinancialAllocationsPage(); break;
             }
         }
@@ -976,7 +988,12 @@
                             </div>
 
                             <label>Category</label>
-                            <select id="category" onchange="toggleRefundFields()"></select>
+                            <select id="category" onchange="toggleRefundFields(); toggleTeacherSalaryFields();"></select>
+
+                            <div id="teacher-salary-section" style="display: none;">
+                                <label>Staff ID / Username <span class="pill">Required for Teacher Salary</span></label>
+                                <input type="text" id="staff-id-input" placeholder="e.g. staff@gmail.com or staff">
+                            </div>
 
                             <label>Amount (PHP)</label>
                             <input type="number" id="amount" step="0.01" min="0" required>
@@ -1000,12 +1017,24 @@
             updateStudentFields();
             updateCategories();
             toggleRefundFields();
+            toggleTeacherSalaryFields();
             document.getElementById('txn-form').onsubmit = handleTransactionSubmit;
             
             // Close on overlay click
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) closeTransactionModal();
             });
+        }
+
+        function toggleTeacherSalaryFields() {
+            const txnType = document.getElementById('txn-type')?.value;
+            const category = document.getElementById('category')?.value;
+            const section = document.getElementById('teacher-salary-section');
+            const staffInput = document.getElementById('staff-id-input');
+            if (!section) return;
+            const shouldShow = txnType === 'Disbursement' && category === 'Teacher Salary';
+            section.style.display = shouldShow ? 'block' : 'none';
+            if (staffInput) { staffInput.required = shouldShow; if (!shouldShow) staffInput.value = ''; }
         }
 
         function toggleRefundFields() {
@@ -1017,7 +1046,6 @@
             
             if (!refundFields) return;
             
-            // Show fields for Collections (always) or Disbursements with Refund category
             const shouldShow = txnType === 'Collection' || (txnType === 'Disbursement' && category === 'Refund');
             
             if (shouldShow) {
@@ -1145,6 +1173,7 @@
             
             catSelect.innerHTML = CATEGORIES[type].map(c => `<option value="${c}">${c}</option>`).join('');
             toggleRefundFields();
+            toggleTeacherSalaryFields();
         }
 
         async function handleTransactionSubmit(e) {
@@ -1196,6 +1225,12 @@
                     }
                 }
                 
+                const isTeacherSalary = txnType === 'Disbursement' && category === 'Teacher Salary';
+                const staffIdEl = document.getElementById('staff-id-input');
+                if (isTeacherSalary && staffIdEl && !staffIdEl.value.trim()) {
+                    showToast('Staff ID / Username is required for Teacher Salary', true);
+                    btn.disabled = false; btn.innerText = 'Submit'; return;
+                }
                 const payload = {
                     recorded_by: currentUser.username,
                     txn_type: txnType,
@@ -1204,6 +1239,7 @@
                     description: document.getElementById('desc').value,
                     amount: parseFloat(document.getElementById('amount').value),
                     student_id: needsFields ? document.getElementById('sid').value : null,
+                    staff_id: isTeacherSalary && staffIdEl ? staffIdEl.value.trim() : null,
                     proof_reference: proofRef,
                     force_pending: document.getElementById('desc').value.trim().length > 0
                 };
@@ -2579,17 +2615,16 @@
             `;
         }
 
-        // --- STUDENT FINANCIAL PROFILE ---
+        // --- STUDENT FINANCIAL PROFILE (with tabs: Financial Profile | My Ledger) ---
         async function renderStudentLedger() {
             const content = document.getElementById('content');
             content.innerHTML = `
                 <h1>Student Financial Profile</h1><hr>
                 <div id="ledger-results" class="grid" style="grid-template-columns: 1fr; gap: 16px;">Loading...</div>
             `;
-            
-            // Automatically load the logged-in student's profile
-            // For students, username is typically their student ID
-            if (currentUser && currentUser.role === 'student') {
+
+            const r = (currentUser && currentUser.role || '').toString().trim().toLowerCase();
+            if (currentUser && r === 'student') {
                 await loadStudentLedger(currentUser.username);
             } else {
                 document.getElementById('ledger-results').innerHTML = '<p style="color: var(--danger);">Student access only.</p>';
@@ -2648,7 +2683,19 @@
                 window.__STUDENT_LEDGER = data;
                 window.__STUDENT_LEDGER_DAY = null;
 
+                const fullLedgerRows = data.length ? data.map(t => {
+                    const billCat = (t.txn_type && t.category) ? (t.txn_type + ' / ' + t.category) : (t.category || t.txn_type || '—');
+                    return `<tr><td>${formatDate(t.created_at)}</td><td>${t.id != null ? t.id : '—'}</td><td>${escapeHtml(billCat)}</td><td>${escapeHtml(t.description || '—')}</td><td>₱${(t.amount != null ? t.amount : 0).toLocaleString()}</td></tr>`;
+                }).join('') : '<tr><td colspan="5" style="text-align:center; color: var(--muted);">No transactions found.</td></tr>';
+
                 resDiv.innerHTML = `
+                    <div class="module-card" style="margin-bottom: 12px;">
+                        <div class="tabs" style="display: flex; gap: 0; border-bottom: 1px solid #ddd;">
+                            <button type="button" class="tab-btn active" data-tab="student-profile" onclick="switchStudentTab('student-profile')" style="padding: 10px 20px; border: none; background: #f0f0f0; cursor: pointer; font-weight: 600;">Financial Profile</button>
+                            <button type="button" class="tab-btn" data-tab="student-ledger" onclick="switchStudentTab('student-ledger')" style="padding: 10px 20px; border: none; background: transparent; cursor: pointer;">My Ledger</button>
+                        </div>
+                    </div>
+                    <div id="student-tab-profile" class="student-tab-panel">
                     <div class="module-card">
                         <h3>Student Academic Information</h3>
                         <div class="grid" style="grid-template-columns: repeat(auto-fit,minmax(160px,1fr)); gap: 10px; margin-top: 10px;">
@@ -2739,15 +2786,38 @@
                             </tbody>
                         </table>
                     </div>
+                    </div>
+                    <div id="student-tab-ledger" class="student-tab-panel" style="display: none;">
+                        <div class="module-card">
+                            <h3>My Ledger</h3>
+                            <p style="color: var(--muted); margin-bottom: 10px;">Your full transaction history.</p>
+                            <table>
+                                <thead><tr><th>Date</th><th>TransactionID</th><th>Bill/Category</th><th>Description</th><th>Amount</th></tr></thead>
+                                <tbody>${fullLedgerRows}</tbody>
+                            </table>
+                        </div>
+                    </div>
                 `;
                 drawStudentCalendar(data);
             } catch(e) { resDiv.innerHTML = "Error loading ledger."; }
         }
 
+        function switchStudentTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.getAttribute('data-tab') === tabId);
+                btn.style.background = btn.getAttribute('data-tab') === tabId ? '#f0f0f0' : 'transparent';
+                btn.style.fontWeight = btn.getAttribute('data-tab') === tabId ? '600' : 'normal';
+            });
+            document.getElementById('student-tab-profile').style.display = tabId === 'student-profile' ? 'block' : 'none';
+            const ledgerPanel = document.getElementById('student-tab-ledger');
+            if (ledgerPanel) ledgerPanel.style.display = tabId === 'student-ledger' ? 'block' : 'none';
+        }
+
         async function saveStudentPaymentPlan() {
             const sel = document.getElementById('student-payment-plan');
             const msgEl = document.getElementById('payment-plan-msg');
-            if (!sel || !currentUser || currentUser.role !== 'student') return;
+            const r = (currentUser && currentUser.role || '').toString().trim().toLowerCase();
+            if (!sel || !currentUser || r !== 'student') return;
             const plan = sel.value || '';
             try {
                 const res = await fetch(`${API_URL}/profile`, {
@@ -2833,6 +2903,426 @@
                     </tbody>
                 </table>
             `;
+        }
+
+        // --- STUDENTS (Payables / Admin: search student and view their personal ledger) ---
+        async function renderStudentsPage() {
+            const content = document.getElementById('content');
+            content.innerHTML = `
+                <h1>Students</h1>
+                <hr style="margin: 15px 0;">
+                <div class="module-card" style="margin-bottom: 16px;">
+                    <h3>Search Student</h3>
+                    <p style="color: var(--muted); margin-bottom: 10px;">Enter Student ID (username) to view their personal ledger.</p>
+                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <input type="text" id="students-search-sid" placeholder="e.g. student@gmail.com or 2023-0001" style="padding: 8px 12px; min-width: 260px; border: 1px solid #ddd; border-radius: 6px;">
+                        <button type="button" class="btn" onclick="searchStudentLedger()">Search</button>
+                    </div>
+                </div>
+                <div id="students-ledger-result"></div>
+            `;
+        }
+
+        async function searchStudentLedger() {
+            const sidInput = document.getElementById('students-search-sid');
+            const resultDiv = document.getElementById('students-ledger-result');
+            if (!sidInput || !resultDiv) return;
+            const studentId = (sidInput.value || '').trim();
+            if (!studentId) {
+                showToast('Enter a Student ID', true);
+                return;
+            }
+            resultDiv.innerHTML = '<div style="text-align:center; padding: 24px; color: var(--muted);">Loading...</div>';
+            try {
+                const [profileRes, txnRes] = await Promise.all([
+                    fetch(`${API_URL}/profile`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ username: studentId }) }),
+                    fetch(`${API_URL}/transactions?student_id=${studentId}&limit=500`)
+                ]);
+                const profile = profileRes && profileRes.ok ? await profileRes.json() : null;
+                const data = txnRes.ok ? await txnRes.json() : [];
+                if (!profile || profile.role !== 'student') {
+                    resultDiv.innerHTML = '<div class="module-card"><p style="color: var(--danger);">Student not found. Enter a valid Student ID (username).</p></div>';
+                    return;
+                }
+                const firstName = profile.first_name || '—';
+                const middleName = profile.middle_name || '—';
+                const lastName = profile.last_name || '—';
+                const strand = profile.strand || '—';
+                const paymentPlan = profile.payment_plan || '—';
+                const ledgerRows = data.length ? data.map(t => {
+                    const billCat = (t.txn_type && t.category) ? (t.txn_type + ' / ' + t.category) : (t.category || t.txn_type || '—');
+                    return `<tr><td>${formatDate(t.created_at)}</td><td>${t.id != null ? t.id : '—'}</td><td>${escapeHtml(billCat)}</td><td>${escapeHtml(t.description || '—')}</td><td>₱${(t.amount != null ? t.amount : 0).toLocaleString()}</td></tr>`;
+                }).join('') : '<tr><td colspan="5" style="text-align:center; color: var(--muted);">No transactions.</td></tr>';
+                resultDiv.innerHTML = `
+                    <div class="module-card">
+                        <h3>Student Details</h3>
+                        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 10px;">
+                            <div><div class="pill">Student ID</div><div>${escapeHtml(studentId)}</div></div>
+                            <div><div class="pill">First name</div><div>${escapeHtml(firstName)}</div></div>
+                            <div><div class="pill">Middle name</div><div>${escapeHtml(middleName)}</div></div>
+                            <div><div class="pill">Last name</div><div>${escapeHtml(lastName)}</div></div>
+                            <div><div class="pill">Strand</div><div>${escapeHtml(strand)}</div></div>
+                            <div><div class="pill">Payment plan</div><div>${escapeHtml(paymentPlan)}</div></div>
+                        </div>
+                    </div>
+                    <div class="module-card">
+                        <h3>Personal Ledger</h3>
+                        <p style="color: var(--muted); margin-bottom: 10px;">All transactions for this student.</p>
+                        <table>
+                            <thead><tr><th>Date</th><th>TransactionID</th><th>Bill/Category</th><th>Description</th><th>Amount</th></tr></thead>
+                            <tbody>${ledgerRows}</tbody>
+                        </table>
+                    </div>
+                `;
+            } catch (e) {
+                resultDiv.innerHTML = '<div class="module-card"><p style="color: var(--danger);">Error loading student. Try again.</p></div>';
+            }
+        }
+
+        // --- STAFF FINANCIAL PROFILE (Details + Payroll) ---
+        async function renderStaffProfile() {
+            const content = document.getElementById('content');
+            const r = (currentUser && currentUser.role || '').toString().trim().toLowerCase();
+            if (r !== 'staff') {
+                content.innerHTML = '<h1>My Profile</h1><hr><p style="color: var(--danger);">Staff access only.</p>';
+                return;
+            }
+            content.innerHTML = '<h1>My Profile</h1><hr><div id="staff-profile-results">Loading...</div>';
+            const resDiv = document.getElementById('staff-profile-results');
+            if (!resDiv) return;
+            try {
+                const [profileRes, txnRes, payrollRes] = await Promise.all([
+                    fetch(`${API_URL}/profile`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ username: currentUser.username }) }),
+                    fetch(`${API_URL}/transactions?staff_id=${encodeURIComponent(currentUser.username)}&limit=500`),
+                    fetch(`${API_URL}/staff/${encodeURIComponent(currentUser.username)}/payroll?current_username=${encodeURIComponent(currentUser.username)}`).catch(() => null)
+                ]);
+                const profile = profileRes && profileRes.ok ? await profileRes.json() : {};
+                const data = txnRes.ok ? await txnRes.json() : [];
+                const payrollSummary = payrollRes && payrollRes.ok ? await payrollRes.json() : { salary_amount: 0, deductions: [], net_pay: 0 };
+                const ln = (profile.last_name || '').trim();
+                const fn = (profile.first_name || '').trim();
+                const mn = (profile.middle_name || '').trim();
+                const fullName = [ln, fn, mn].filter(Boolean).length
+                    ? `${ln || '—'}, ${fn || '—'} ${mn || ''}`.replace(/\s+/g, ' ').trim()
+                    : '—';
+                const position = profile.position || '—';
+                const department = profile.department || '—';
+                const dateHired = profile.date_hired || '—';
+                const status = profile.status || '—';
+                const monthlySalary = profile.monthly_salary != null ? profile.monthly_salary : '—';
+                const salaryDisplay = monthlySalary === '—' ? '—' : '₱' + Number(monthlySalary).toLocaleString();
+                const payrollRows = data.length ? data.map(t => {
+                    const billCat = (t.txn_type && t.category) ? (t.txn_type + ' / ' + t.category) : (t.category || t.txn_type || '—');
+                    return `<tr><td>${formatDate(t.created_at)}</td><td>${t.id != null ? t.id : '—'}</td><td>${escapeHtml(billCat)}</td><td>${escapeHtml(t.description || '—')}</td><td>₱${(t.amount != null ? t.amount : 0).toLocaleString()}</td><td>${escapeHtml(t.status || '—')}</td></tr>`;
+                }).join('') : '<tr><td colspan="6" style="text-align:center; color: var(--muted);">No payroll records yet.</td></tr>';
+                const dedRows = (payrollSummary.deductions || []).length ? (payrollSummary.deductions || []).map(d => `<tr><td>${escapeHtml(d.deduction_type || '—')}</td><td>₱${Number(d.amount || 0).toLocaleString()}</td></tr>`).join('') : '<tr><td colspan="2" style="text-align:center; color: var(--muted);">No deductions.</td></tr>';
+                const salaryAmt = payrollSummary.salary_amount != null ? payrollSummary.salary_amount : 0;
+                const netPayVal = payrollSummary.net_pay != null ? payrollSummary.net_pay : salaryAmt;
+                resDiv.innerHTML = `
+                    <div class="module-card" style="margin-bottom: 12px;">
+                        <div class="tabs" style="display: flex; gap: 0; border-bottom: 1px solid #ddd;">
+                            <button type="button" class="tab-btn active" data-tab="staff-details" onclick="switchStaffTab('staff-details')" style="padding: 10px 20px; border: none; background: #f0f0f0; cursor: pointer; font-weight: 600;">Financial Profile</button>
+                            <button type="button" class="tab-btn" data-tab="staff-payroll" onclick="switchStaffTab('staff-payroll')" style="padding: 10px 20px; border: none; background: transparent; cursor: pointer;">Payroll</button>
+                        </div>
+                    </div>
+                    <div id="staff-tab-details" class="staff-tab-panel">
+                        <div class="module-card">
+                            <h3>Staff Details</h3>
+                            <div style="display: flex; justify-content: center;">
+                                <table class="staff-details-table" style="margin: 10px auto; text-align: center;">
+                                    <tbody>
+                                        <tr><td style="font-weight: 600; padding: 8px 16px;">ID</td><td style="padding: 8px 16px;">${escapeHtml(currentUser.username)}</td></tr>
+                                        <tr><td style="font-weight: 600; padding: 8px 16px;">Full name</td><td style="padding: 8px 16px;">${escapeHtml(fullName)}</td></tr>
+                                        <tr><td style="font-weight: 600; padding: 8px 16px;">Position</td><td style="padding: 8px 16px;">${escapeHtml(position)}</td></tr>
+                                        <tr><td style="font-weight: 600; padding: 8px 16px;">Department</td><td style="padding: 8px 16px;">${escapeHtml(department)}</td></tr>
+                                        <tr><td style="font-weight: 600; padding: 8px 16px;">Date hired</td><td style="padding: 8px 16px;">${escapeHtml(dateHired)}</td></tr>
+                                        <tr><td style="font-weight: 600; padding: 8px 16px;">Employment status</td><td style="padding: 8px 16px;">${escapeHtml(status)}</td></tr>
+                                        <tr><td style="font-weight: 600; padding: 8px 16px;">Monthly salary</td><td style="padding: 8px 16px;">${escapeHtml(salaryDisplay)}</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="module-card">
+                            <h3>Payroll Summary</h3>
+                            <div style="display: flex; justify-content: center;">
+                                <table class="staff-details-table" style="margin: 10px auto; text-align: center;">
+                                    <thead><tr><th style="padding: 8px 16px;">Deduction Breakdown</th><th></th></tr><tr><th style="padding: 6px 16px;">Deduction Type</th><th style="padding: 6px 16px;">Amount</th></tr></thead>
+                                    <tbody>${dedRows}</tbody>
+                                </table>
+                            </div>
+                            <div style="display: flex; justify-content: center; margin-top: 16px;">
+                                <table class="staff-details-table" style="margin: 0 auto; text-align: center;">
+                                    <thead><tr><th style="padding: 8px 16px;">Net Pay</th><th></th></tr></thead>
+                                    <tbody>
+                                        <tr><td style="padding: 6px 16px;">Salary Amount</td><td style="padding: 6px 16px; font-weight: 600;">₱${Number(salaryAmt).toLocaleString()}</td></tr>
+                                        <tr><td style="padding: 6px 16px;">Net Pay</td><td style="padding: 6px 16px; font-weight: 600;">₱${Number(netPayVal).toLocaleString()}</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="staff-tab-payroll" class="staff-tab-panel" style="display: none;">
+                        <div class="module-card">
+                            <h3>Payroll</h3>
+                            <p style="color: var(--muted); margin-bottom: 10px;">Your salary and related disbursements (Teacher Salary, etc.).</p>
+                            <table>
+                                <thead><tr><th>Date</th><th>TransactionID</th><th>Bill/Category</th><th>Description</th><th>Amount</th><th>Status</th></tr></thead>
+                                <tbody>${payrollRows}</tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            } catch (e) {
+                resDiv.innerHTML = '<div class="module-card"><p style="color: var(--danger);">Error loading profile.</p></div>';
+            }
+        }
+
+        function switchStaffTab(tabId) {
+            document.querySelectorAll('.staff-tab-panel').forEach(panel => {
+                if (panel.id && panel.id.startsWith('staff-tab-')) panel.style.display = 'none';
+            });
+            document.querySelectorAll('.tab-btn[data-tab^="staff-"]').forEach(btn => {
+                const isActive = btn.getAttribute('data-tab') === tabId;
+                btn.classList.toggle('active', isActive);
+                btn.style.background = isActive ? '#f0f0f0' : 'transparent';
+                btn.style.fontWeight = isActive ? '600' : 'normal';
+            });
+            const detailsPanel = document.getElementById('staff-tab-details');
+            const payrollPanel = document.getElementById('staff-tab-payroll');
+            if (detailsPanel) detailsPanel.style.display = tabId === 'staff-details' ? 'block' : 'none';
+            if (payrollPanel) payrollPanel.style.display = tabId === 'staff-payroll' ? 'block' : 'none';
+        }
+
+        // --- STAFF SEARCH (Admin / Payables: search staff, view and edit details + payroll summary) ---
+        let __staffSearchProfile = null;
+        let __staffSearchPayroll = { salary_amount: 0, deductions: [], net_pay: 0 };
+        let __staffSearchId = '';
+
+        async function renderStaffSearchPage() {
+            const content = document.getElementById('content');
+            content.innerHTML = `
+                <h1>Staff</h1>
+                <hr style="margin: 15px 0;">
+                <div class="module-card" style="margin-bottom: 16px;">
+                    <h3>Search Staff</h3>
+                    <p style="color: var(--muted); margin-bottom: 10px;">Enter Staff ID (username) to view and edit their details and payroll summary.</p>
+                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <input type="text" id="staff-search-id" placeholder="e.g. staff@gmail.com" style="padding: 8px 12px; min-width: 260px; border: 1px solid #ddd; border-radius: 6px;">
+                        <button type="button" class="btn" onclick="searchStaffAndLoad()">Search</button>
+                    </div>
+                </div>
+                <div id="staff-search-result"></div>
+            `;
+        }
+
+        async function searchStaffAndLoad() {
+            const idInput = document.getElementById('staff-search-id');
+            const resultDiv = document.getElementById('staff-search-result');
+            if (!idInput || !resultDiv) return;
+            const staffId = (idInput.value || '').trim();
+            if (!staffId) { showToast('Enter a Staff ID', true); return; }
+            resultDiv.innerHTML = '<div style="text-align:center; padding: 24px; color: var(--muted);">Loading...</div>';
+            try {
+                const [profileRes, payrollRes] = await Promise.all([
+                    fetch(`${API_URL}/profile`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ username: staffId }) }),
+                    fetch(`${API_URL}/staff/${encodeURIComponent(staffId)}/payroll?current_username=${encodeURIComponent(currentUser.username)}`)
+                ]);
+                const profile = profileRes && profileRes.ok ? await profileRes.json() : null;
+                const payroll = payrollRes && payrollRes.ok ? await payrollRes.json() : { salary_amount: 0, deductions: [], net_pay: 0 };
+                if (!profile || profile.role !== 'staff') {
+                    resultDiv.innerHTML = '<div class="module-card"><p style="color: var(--danger);">Staff not found. Enter a valid Staff ID (username).</p></div>';
+                    return;
+                }
+                __staffSearchProfile = profile;
+                __staffSearchPayroll = payroll;
+                __staffSearchId = staffId;
+                renderStaffSearchResult();
+            } catch (e) {
+                resultDiv.innerHTML = '<div class="module-card"><p style="color: var(--danger);">Error loading staff.</p></div>';
+            }
+        }
+
+        function renderStaffSearchResult() {
+            const resultDiv = document.getElementById('staff-search-result');
+            if (!resultDiv || !__staffSearchProfile) return;
+            const p = __staffSearchProfile;
+            const ln = (p.last_name || '').trim(), fn = (p.first_name || '').trim(), mn = (p.middle_name || '').trim();
+            const fullName = [ln, fn, mn].filter(Boolean).length ? `${ln || '—'}, ${fn || '—'} ${mn || ''}`.replace(/\s+/g, ' ').trim() : '—';
+                const payroll = __staffSearchPayroll;
+                const deductions = payroll.deductions || [];
+                const totalDeductions = deductions.reduce((s, d) => s + (Number(d.amount) || 0), 0);
+                const salaryAmt = payroll.salary_amount != null ? payroll.salary_amount : 0;
+                const netPay = payroll.net_pay != null ? payroll.net_pay : salaryAmt;
+                const dedRows = deductions.map((d, i) => `
+                <tr data-index="${i}">
+                    <td style="padding: 6px 8px;"><input type="text" class="ded-type" value="${escapeHtml(d.deduction_type || '')}" placeholder="Deduction type" style="width: 100%; padding: 6px;"></td>
+                    <td style="padding: 6px 8px;"><input type="number" class="ded-amount" value="${d.amount != null ? d.amount : 0}" step="0.01" min="0" style="width: 120px; padding: 6px;"></td>
+                    <td style="padding: 6px 8px;"><button type="button" class="btn btn-outline" onclick="removeStaffDeductionRow(${i})" style="padding: 4px 10px;">Remove</button></td>
+                </tr>
+            `).join('');
+            resultDiv.innerHTML = `
+                <div class="module-card">
+                    <h3>Staff Details</h3>
+                    <p style="color: var(--muted); margin-bottom: 10px;">Edit and save staff details (admin). Salary Amount in Payroll Summary is derived from Monthly salary.</p>
+                    <div style="display: flex; justify-content: center;">
+                        <table class="staff-details-table" style="margin: 10px auto; text-align: center;">
+                            <tbody>
+                                <tr><td style="font-weight: 600; padding: 8px 16px;">ID</td><td style="padding: 8px 16px;">${escapeHtml(__staffSearchId)}</td></tr>
+                                <tr><td style="font-weight: 600; padding: 8px 16px;">First name</td><td style="padding: 8px 16px;"><input type="text" id="staff-edit-first" value="${escapeHtml(p.first_name || '')}" style="padding: 6px 10px; width: 200px; border: 1px solid #ddd; border-radius: 6px;"></td></tr>
+                                <tr><td style="font-weight: 600; padding: 8px 16px;">Middle name</td><td style="padding: 8px 16px;"><input type="text" id="staff-edit-middle" value="${escapeHtml(p.middle_name || '')}" style="padding: 6px 10px; width: 200px; border: 1px solid #ddd; border-radius: 6px;"></td></tr>
+                                <tr><td style="font-weight: 600; padding: 8px 16px;">Last name</td><td style="padding: 8px 16px;"><input type="text" id="staff-edit-last" value="${escapeHtml(p.last_name || '')}" style="padding: 6px 10px; width: 200px; border: 1px solid #ddd; border-radius: 6px;"></td></tr>
+                                <tr><td style="font-weight: 600; padding: 8px 16px;">Position</td><td style="padding: 8px 16px;"><select id="staff-edit-position" style="padding: 6px 10px; width: 220px; border: 1px solid #ddd; border-radius: 6px;">${POSITION_OPTIONS.map(opt => `<option value="${escapeHtml(opt)}" ${(p.position || '') === opt ? 'selected' : ''}>${escapeHtml(opt)}</option>`).join('')}</select></td></tr>
+                                <tr><td style="font-weight: 600; padding: 8px 16px;">Department</td><td style="padding: 8px 16px;"><input type="text" id="staff-edit-department" value="${escapeHtml(p.department || '')}" style="padding: 6px 10px; width: 200px; border: 1px solid #ddd; border-radius: 6px;"></td></tr>
+                                <tr><td style="font-weight: 600; padding: 8px 16px;">Date hired</td><td style="padding: 8px 16px;"><input type="text" id="staff-edit-datehired" value="${escapeHtml(p.date_hired || '')}" placeholder="YYYY-MM-DD" style="padding: 6px 10px; width: 200px; border: 1px solid #ddd; border-radius: 6px;"></td></tr>
+                                <tr><td style="font-weight: 600; padding: 8px 16px;">Employment status</td><td style="padding: 8px 16px;"><input type="text" id="staff-edit-status" value="${escapeHtml(p.status || '')}" style="padding: 6px 10px; width: 200px; border: 1px solid #ddd; border-radius: 6px;"></td></tr>
+                                <tr><td style="font-weight: 600; padding: 8px 16px;">Monthly salary (₱)</td><td style="padding: 8px 16px;"><input type="number" id="staff-edit-monthly" value="${p.monthly_salary != null ? p.monthly_salary : ''}" min="0" step="1" style="padding: 6px 10px; width: 140px; border: 1px solid #ddd; border-radius: 6px;"></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style="margin-top: 16px; display: flex; justify-content: center;"><button type="button" class="btn" onclick="saveStaffDetails()">Save Staff Details</button></div>
+                </div>
+                <div class="module-card">
+                    <h3>Payroll Summary</h3>
+                    <p style="color: var(--muted); margin-bottom: 10px;">Salary Amount is derived from staff Monthly salary. Edit deductions and click Save Payroll.</p>
+                    <div style="display: flex; justify-content: center; flex-wrap: wrap;">
+                        <div style="margin: 10px;">
+                            <label style="display: block; margin-bottom: 6px; font-weight: 600;">Salary Amount (₱)</label>
+                            <input type="number" id="staff-edit-salary" value="${salaryAmt}" step="1" min="0" readonly style="padding: 8px 12px; width: 140px; border: 1px solid #ddd; border-radius: 6px; background: #f5f5f5;" title="Derived from Monthly salary. Edit Staff Details to change.">
+                        </div>
+                    </div>
+                    <div style="margin-top: 16px;">
+                        <h4 style="margin-bottom: 8px;">Deduction Breakdown</h4>
+                        <div style="display: flex; justify-content: center;">
+                            <table class="staff-details-table" style="margin: 0 auto; text-align: center;">
+                                <thead><tr><th style="padding: 8px 16px;">Deduction Type</th><th style="padding: 8px 16px;">Amount</th><th style="padding: 8px 16px;"></th></tr></thead>
+                                <tbody id="staff-deductions-tbody">${dedRows}</tbody>
+                            </table>
+                        </div>
+                        <button type="button" class="btn btn-outline" onclick="addStaffDeductionRow()" style="margin-top: 10px;">Add Deduction</button>
+                    </div>
+                    <div style="display: flex; justify-content: center; margin-top: 16px;">
+                        <table class="staff-details-table" style="margin: 0 auto; text-align: center;">
+                            <thead><tr><th style="padding: 8px 16px;">Net Pay</th><th></th></tr></thead>
+                            <tbody>
+                                <tr><td style="padding: 6px 16px;">Salary Amount</td><td id="staff-summary-salary" style="padding: 6px 16px; font-weight: 600;">₱${Number(salaryAmt).toLocaleString()}</td></tr>
+                                <tr><td style="padding: 6px 16px;">Net Pay</td><td id="staff-summary-net" style="padding: 6px 16px; font-weight: 600;">₱${Number(netPay).toLocaleString()}</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style="margin-top: 20px;">
+                        <button type="button" class="btn" onclick="saveStaffPayroll()">Save Payroll</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function addStaffDeductionRow() {
+            const tbody = document.getElementById('staff-deductions-tbody');
+            if (!tbody) return;
+            const i = tbody.querySelectorAll('tr').length;
+            const tr = document.createElement('tr');
+            tr.setAttribute('data-index', i);
+            tr.innerHTML = `
+                <td style="padding: 6px 8px;"><input type="text" class="ded-type" placeholder="Deduction type" style="width: 100%; padding: 6px;"></td>
+                <td style="padding: 6px 8px;"><input type="number" class="ded-amount" value="0" step="0.01" min="0" style="width: 120px; padding: 6px;"></td>
+                <td style="padding: 6px 8px;"><button type="button" class="btn btn-outline" onclick="this.closest('tr').remove()" style="padding: 4px 10px;">Remove</button></td>
+            `;
+            tbody.appendChild(tr);
+        }
+
+        function removeStaffDeductionRow(rowOrIndex) {
+            const tbody = document.getElementById('staff-deductions-tbody');
+            if (!tbody) return;
+            const tr = typeof rowOrIndex === 'number' ? tbody.querySelector(`tr[data-index="${rowOrIndex}"]`) : rowOrIndex;
+            if (tr) tr.remove();
+        }
+
+        function getStaffEditDeductions() {
+            const tbody = document.getElementById('staff-deductions-tbody');
+            if (!tbody) return [];
+            const rows = tbody.querySelectorAll('tr');
+            const list = [];
+            rows.forEach(tr => {
+                const typeInput = tr.querySelector('.ded-type');
+                const amountInput = tr.querySelector('.ded-amount');
+                const type = (typeInput && typeInput.value || '').trim();
+                const amount = parseFloat(amountInput && amountInput.value) || 0;
+                if (type || amount) list.push({ deduction_type: type || 'Deduction', amount });
+            });
+            return list;
+        }
+
+        async function saveStaffDetails() {
+            if (!__staffSearchId || !currentUser) return;
+            const first = document.getElementById('staff-edit-first')?.value?.trim() ?? '';
+            const middle = document.getElementById('staff-edit-middle')?.value?.trim() ?? '';
+            const last = document.getElementById('staff-edit-last')?.value?.trim() ?? '';
+            const position = document.getElementById('staff-edit-position')?.value?.trim() ?? '';
+            const department = document.getElementById('staff-edit-department')?.value?.trim() ?? '';
+            const dateHired = document.getElementById('staff-edit-datehired')?.value?.trim() ?? '';
+            const status = document.getElementById('staff-edit-status')?.value?.trim() ?? '';
+            const monthlyEl = document.getElementById('staff-edit-monthly');
+            const monthlySalary = monthlyEl && monthlyEl.value !== '' ? parseInt(monthlyEl.value, 10) : null;
+            try {
+                const res = await fetch(`${API_URL}/users/${encodeURIComponent(__staffSearchId)}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        role: 'staff',
+                        first_name: first || null,
+                        middle_name: middle || null,
+                        last_name: last || null,
+                        position: position || null,
+                        department: department || null,
+                        date_hired: dateHired || null,
+                        status: status || null,
+                        monthly_salary: monthlySalary
+                    })
+                });
+                if (res.ok) {
+                    showToast('Staff details saved.');
+                    __staffSearchProfile = { ...__staffSearchProfile, first_name: first, middle_name: middle, last_name: last, position, department, date_hired: dateHired, status, monthly_salary: monthlySalary };
+                    const payrollRes = await fetch(`${API_URL}/staff/${encodeURIComponent(__staffSearchId)}/payroll?current_username=${encodeURIComponent(currentUser.username)}`);
+                    if (payrollRes.ok) __staffSearchPayroll = await payrollRes.json();
+                    renderStaffSearchResult();
+                } else {
+                    const err = await res.json().catch(() => ({}));
+                    showToast(err.detail || 'Save failed', true);
+                }
+            } catch (e) {
+                showToast('Error saving staff details', true);
+            }
+        }
+
+        async function saveStaffPayroll() {
+            if (!__staffSearchId || !currentUser?.username) {
+                showToast('Not logged in or no staff selected', true);
+                return;
+            }
+            const deductions = getStaffEditDeductions();
+            try {
+                const payload = { deductions: deductions };
+                const res = await fetch(`${API_URL}/staff/${encodeURIComponent(__staffSearchId)}/payroll?current_username=${encodeURIComponent(currentUser.username)}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    showToast('Payroll saved.');
+                    try {
+                        const payrollRes = await fetch(`${API_URL}/staff/${encodeURIComponent(__staffSearchId)}/payroll?current_username=${encodeURIComponent(currentUser.username)}`);
+                        if (payrollRes.ok) {
+                            __staffSearchPayroll = await payrollRes.json();
+                        }
+                    } catch (_) {}
+                    renderStaffSearchResult();
+                } else {
+                    const err = await res.json().catch(() => ({}));
+                    showToast(err.detail || 'Save failed', true);
+                }
+            } catch (e) {
+                showToast('Error saving payroll', true);
+            }
         }
 
         // --- USER MANAGEMENT (IT) ---
@@ -3344,7 +3834,11 @@
 
         // Init
         const storedUser = localStorage.getItem('user');
-        if (storedUser) { currentUser = JSON.parse(storedUser); updateUIState(); }
+        if (storedUser) {
+            currentUser = JSON.parse(storedUser);
+            if (currentUser && typeof currentUser.role === 'string') currentUser.role = currentUser.role.trim().toLowerCase();
+            updateUIState();
+        }
     </script>
 </body>
 </html>

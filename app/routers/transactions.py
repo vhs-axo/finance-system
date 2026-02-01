@@ -18,16 +18,21 @@ from ..schemas import (
 router = APIRouter(tags=["Transactions"])
 
 
+def _esc(s: str) -> str:
+    return (s or "").replace("'", "''")
+
+
 def get_user_role(client, username: str):
-    """Get user role and active status."""
+    """Get user role and active status (role is stored directly in users: admin, payables, student, staff, etc.)."""
     try:
+        un = _esc(username)
         res = client.sqlQuery(
-            f"SELECT role, active FROM users WHERE username = '{username}'"
+            f"SELECT role, active FROM users WHERE username = '{un}'"
         )
         if not res or not res[0][1]:  # Not found or not active
             return None
-        return res[0][0]  # Return role
-    except Exception as e:
+        return res[0][0]
+    except Exception:
         return None
 
 
@@ -68,14 +73,25 @@ def create_transaction(txn: TransactionCreate):
         query = f"""
             INSERT INTO transactions (
                 created_at, recorded_by, txn_type, strand, category,
-                description, amount, status, student_id, proof_reference
+                description, amount, status, student_id, staff_id, proof_reference
             ) VALUES (
                 NOW(), '{txn.recorded_by}', '{txn.txn_type}', '{txn.strand}', '{txn.category}',
-                '{txn.description}', {amount_cents}, '{status}', '{txn.student_id or ""}', '{txn.proof_reference or ""}'
+                '{txn.description}', {amount_cents}, '{status}', '{txn.student_id or ""}', '{txn.staff_id or ""}', '{txn.proof_reference or ""}'
             )
         """
-
-        client.sqlExec(query)
+        try:
+            client.sqlExec(query)
+        except Exception:
+            query_old = f"""
+                INSERT INTO transactions (
+                    created_at, recorded_by, txn_type, strand, category,
+                    description, amount, status, student_id, proof_reference
+                ) VALUES (
+                    NOW(), '{txn.recorded_by}', '{txn.txn_type}', '{txn.strand}', '{txn.category}',
+                    '{txn.description}', {amount_cents}, '{status}', '{txn.student_id or ""}', '{txn.proof_reference or ""}'
+                )
+            """
+            client.sqlExec(query_old)
 
         # Fetch back the latest transaction for this user to get the generated ID
         res = client.sqlQuery(
@@ -164,6 +180,9 @@ def create_transaction(txn: TransactionCreate):
             "amount": txn.amount,
             "status": status,
             "student_id": txn.student_id,
+            "staff_id": txn.staff_id,
+            "approved_by": None,
+            "approval_date": None,
             "proof_reference": txn.proof_reference,
             "tx_hash": tx_hash,
         }
@@ -175,14 +194,18 @@ def create_transaction(txn: TransactionCreate):
 
 @router.get("/transactions", response_model=List[TransactionResponse])
 def get_transactions(
-    student_id: Optional[str] = None, status: Optional[str] = None, limit: int = 100
+    student_id: Optional[str] = None,
+    staff_id: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = 100,
 ):
     client = get_db_client()
     try:
-        # Build conditions
         conditions = []
         if student_id:
-            conditions.append(f"student_id = '{student_id}'")
+            conditions.append(f"student_id = '{_esc(student_id)}'")
+        if staff_id:
+            conditions.append(f"staff_id = '{_esc(staff_id)}'")
         if status:
             conditions.append(f"status = '{status}'")
 
@@ -190,7 +213,17 @@ def get_transactions(
         if conditions:
             where_clause = " WHERE " + " AND ".join(conditions)
 
-        query = f"""
+        # Try with staff_id (new schema); fallback without it for old DBs
+        query_with_staff = f"""
+            SELECT
+                id, created_at, recorded_by, txn_type, strand, category,
+                description, amount, status, student_id, staff_id, approved_by,
+                approval_date, proof_reference
+            FROM transactions
+            {where_clause}
+            ORDER BY created_at DESC LIMIT {limit}
+        """
+        query_without_staff = f"""
             SELECT
                 id, created_at, recorded_by, txn_type, strand, category,
                 description, amount, status, student_id, approved_by,
@@ -199,33 +232,36 @@ def get_transactions(
             {where_clause}
             ORDER BY created_at DESC LIMIT {limit}
         """
-        result = client.sqlQuery(query)
+        try:
+            result = client.sqlQuery(query_with_staff)
+            has_staff_col = True
+        except Exception:
+            result = client.sqlQuery(query_without_staff)
+            has_staff_col = False
 
         txns = []
         for row in result:
-            # We generate a deterministic SHA-256 hash of the content for display
             content_str = f"{row[0]}|{row[1]}|{row[2]}|{row[3]}|{row[7]}|{row[8]}"
             tx_hash_bytes = hashlib.sha256(content_str.encode()).digest()
             tx_hash = binascii.hexlify(tx_hash_bytes).decode("utf-8")
-
-            txns.append(
-                {
-                    "id": row[0],
-                    "created_at": str(row[1]),
-                    "recorded_by": row[2],
-                    "txn_type": row[3],
-                    "strand": row[4],
-                    "category": row[5],
-                    "description": row[6],
-                    "amount": row[7] / 100.0,
-                    "status": row[8],
-                    "student_id": row[9],
-                    "approved_by": row[10],
-                    "approval_date": str(row[11]) if row[11] else None,
-                    "proof_reference": row[12],
-                    "tx_hash": tx_hash,
-                }
-            )
+            if has_staff_col:
+                # 0 id, 1 created_at, 2 recorded_by, 3 txn_type, 4 strand, 5 category, 6 description, 7 amount, 8 status, 9 student_id, 10 staff_id, 11 approved_by, 12 approval_date, 13 proof_reference
+                txns.append({
+                    "id": row[0], "created_at": str(row[1]), "recorded_by": row[2], "txn_type": row[3], "strand": row[4],
+                    "category": row[5], "description": row[6], "amount": row[7] / 100.0, "status": row[8],
+                    "student_id": row[9], "staff_id": row[10] if len(row) > 10 else None,
+                    "approved_by": row[11] if len(row) > 11 else None, "approval_date": str(row[12]) if len(row) > 12 and row[12] else None,
+                    "proof_reference": row[13] if len(row) > 13 else None, "tx_hash": tx_hash,
+                })
+            else:
+                # 0 id, 1 created_at, 2 recorded_by, 3 txn_type, 4 strand, 5 category, 6 description, 7 amount, 8 status, 9 student_id, 10 approved_by, 11 approval_date, 12 proof_reference
+                txns.append({
+                    "id": row[0], "created_at": str(row[1]), "recorded_by": row[2], "txn_type": row[3], "strand": row[4],
+                    "category": row[5], "description": row[6], "amount": row[7] / 100.0, "status": row[8],
+                    "student_id": row[9], "staff_id": None,
+                    "approved_by": row[10] if len(row) > 10 else None, "approval_date": str(row[11]) if len(row) > 11 and row[11] else None,
+                    "proof_reference": row[12] if len(row) > 12 else None, "tx_hash": tx_hash,
+                })
         return txns
 
     except Exception as e:
@@ -354,6 +390,8 @@ def admin_update_transaction(txn_id: int, payload: TransactionUpdateAdmin):
         updates.append(f"status = '{payload.status}'")
     if payload.student_id is not None:
         updates.append(f"student_id = '{payload.student_id}'")
+    if payload.staff_id is not None:
+        updates.append(f"staff_id = '{_esc(payload.staff_id)}'")
     if payload.proof_reference is not None:
         updates.append(f"proof_reference = '{payload.proof_reference}'")
 

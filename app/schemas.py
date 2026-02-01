@@ -1,3 +1,5 @@
+from typing import Any, List, Optional
+
 from pydantic import BaseModel
 
 
@@ -9,7 +11,7 @@ class LoginRequest(BaseModel):
 
 class LoginResponse(BaseModel):
     success: bool
-    role: str | None = None
+    role: str | None = None  # Actual role: admin, payables, student, staff, etc.
     name: str | None = None
     first_name: str | None = None
     last_name: str | None = None
@@ -19,10 +21,13 @@ class LoginResponse(BaseModel):
 # Payment plans: Plan A = yearly, Plan B = semestral, Plan C = monthly
 PAYMENT_PLAN_CHOICES = ["plan_a", "plan_b", "plan_c"]
 
+# Role types in users table (each role has its own table except student/staff)
+USER_ROLES = ["student", "staff", "admin", "payables", "bookkeeper", "vp_finance", "president", "procurement", "dept_head", "it"]
+
 
 class UserBase(BaseModel):
     username: str
-    role: str
+    role: str  # student | staff | general
     name: str
     active: bool = True
     first_name: str | None = None
@@ -30,12 +35,27 @@ class UserBase(BaseModel):
     last_name: str | None = None
     contact_info: str | None = None
     gender: str | None = None
+    # Student-only
     strand: str | None = None
+    section: str | None = None
     payment_plan: str | None = None
+    # General-only
+    gen_role: str | None = None
+    # Staff-only
+    position: str | None = None
+    department: str | None = None
+    date_hired: str | None = None
+    status: str | None = None
+    monthly_salary: int | None = None
 
 
 class UserCreate(UserBase):
     password: str
+
+
+class DeductionItem(BaseModel):
+    deduction_type: str = ""
+    amount: float = 0.0
 
 
 class UserUpdate(BaseModel):
@@ -49,6 +69,15 @@ class UserUpdate(BaseModel):
     contact_info: str | None = None
     gender: str | None = None
     payment_plan: str | None = None
+    strand: str | None = None
+    section: str | None = None
+    gen_role: str | None = None
+    position: str | None = None
+    department: str | None = None
+    date_hired: str | None = None
+    status: str | None = None
+    monthly_salary: int | None = None
+    deductions: Optional[List[DeductionItem]] = None  # staff payroll deduction list
 
 
 class UserProfileUpdate(BaseModel):
@@ -58,6 +87,8 @@ class UserProfileUpdate(BaseModel):
     contact_info: str | None = None
     gender: str | None = None
     payment_plan: str | None = None
+    strand: str | None = None
+    section: str | None = None
 
 
 class PasswordChange(BaseModel):
@@ -93,7 +124,8 @@ class TransactionCreate(BaseModel):
     description: str
     amount: float
     student_id: str | None = None
-    proof_reference: str | None = None  # Added for Evidence/Receipt Ref
+    staff_id: str | None = None
+    proof_reference: str | None = None
 
 
 class TransactionResponse(BaseModel):
@@ -107,6 +139,7 @@ class TransactionResponse(BaseModel):
     amount: float
     status: str
     student_id: str | None = None
+    staff_id: str | None = None
     approved_by: str | None = None
     approval_date: str | None = None
     proof_reference: str | None = None
@@ -131,6 +164,7 @@ class TransactionUpdateAdmin(BaseModel):
     amount: float | None = None
     status: str | None = None
     student_id: str | None = None
+    staff_id: str | None = None
     proof_reference: str | None = None
 
 

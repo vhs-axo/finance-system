@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .database import init_db
-from .routers import allocations, auth, bills, files, stats, transactions
+from .routers import allocations, auth, bills, files, staff, stats, transactions
 
 # Initialize API
 app = FastAPI(
@@ -39,6 +39,7 @@ app.include_router(transactions.router)
 app.include_router(stats.router)
 app.include_router(bills.router)
 app.include_router(allocations.router)
+app.include_router(staff.router)
 app.include_router(files.router, prefix="/files")
 
 # 4. Mount Static Files
